@@ -99,4 +99,10 @@
 	:global(input), :global(select), :global(textarea) {
 		font-family: inherit;
 	}
+	
+	/* Adjust styles based on webview context */
+	:global(.sidebar-context) {
+		max-width: 100%;
+		overflow-x: hidden;
+	}
 </style>

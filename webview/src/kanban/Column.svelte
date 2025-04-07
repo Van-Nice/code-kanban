@@ -1,6 +1,7 @@
 <script lang="ts">
   import Card from './Card.svelte';
   import { createEventDispatcher } from 'svelte';
+  import { getWebviewContext } from '../utils/vscodeMessaging';
 
   export let id: string;
   export let title: string;
@@ -8,6 +9,7 @@
   export let boardId: string;
 
   const dispatch = createEventDispatcher();
+  let webviewContext = getWebviewContext();
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
@@ -45,7 +47,7 @@
 </script>
 
 <div 
-  class="bg-[var(--vscode-sideBar-background)] border border-[var(--vscode-panel-border)] rounded-md h-full flex flex-col"
+  class="bg-[var(--vscode-sideBar-background)] border border-[var(--vscode-panel-border)] rounded-md h-full flex flex-col {webviewContext === 'sidebar' ? 'mb-4' : ''}"
   on:dragover={handleDragOver}
   on:dragleave={handleDragLeave}
   on:drop={handleDrop}
@@ -53,7 +55,7 @@
   <div class="p-3 border-b border-[var(--vscode-panel-border)]">
     <h2 class="text-sm font-medium text-[var(--vscode-sideBarTitle-foreground)]">{title}</h2>
   </div>
-  <div class="p-2 flex-1 overflow-y-auto space-y-2 min-h-[200px]">
+  <div class="p-2 flex-1 overflow-y-auto space-y-2 {webviewContext === 'sidebar' ? 'max-h-[200px]' : 'min-h-[200px]'}">
     {#each cards as card (card.id)}
       <div draggable="true" on:dragstart={(e: DragEvent) => handleDragStart(e, card)}>
         <Card 

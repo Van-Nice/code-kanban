@@ -1,6 +1,7 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
   import { sendMessage } from '../utils/vscodeMessaging';
+  import { getWebviewContext } from '../utils/vscodeMessaging';
 
   export let id: string = uuidv4();
   export let title: string;
@@ -16,6 +17,7 @@
   let editedLabels = [...labels];
   let editedAssignee = assignee;
   let newLabel = '';
+  let webviewContext = getWebviewContext();
 
   function startEditing() {
     isEditing = true;

@@ -137,24 +137,48 @@
   }
 </script>
 
-<div class="h-full">
-  <div class="flex gap-4 p-4 min-h-screen">
-    {#each columns as column (column.id)}
-      <div class="flex-shrink-0 w-72">
-        <Column
-          id={column.id}
-          title={column.title}
-          cards={column.cards}
-          boardId={boardId}
-          on:cardMove={handleCardMove}
-        />
-        <button
-          on:click={() => addCard(column.id)}
-          class="w-full mt-2 px-3 py-1.5 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
-        >
-          + Add Card
-        </button>
-      </div>
-    {/each}
-  </div>
+<div class="h-full {webviewContext === 'sidebar' ? 'sidebar-context' : ''}">
+  {#if webviewContext === 'sidebar'}
+    <!-- Sidebar layout: columns stacked vertically -->
+    <div class="flex flex-col gap-4 p-4 min-h-screen">
+      {#each columns as column (column.id)}
+        <div class="flex-shrink-0 w-full">
+          <Column
+            id={column.id}
+            title={column.title}
+            cards={column.cards}
+            boardId={boardId}
+            on:cardMove={handleCardMove}
+          />
+          <button
+            on:click={() => addCard(column.id)}
+            class="w-full mt-2 px-3 py-1.5 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
+          >
+            + Add Card
+          </button>
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <!-- Editor layout: columns side by side -->
+    <div class="flex gap-4 p-4 min-h-screen">
+      {#each columns as column (column.id)}
+        <div class="flex-shrink-0 w-72">
+          <Column
+            id={column.id}
+            title={column.title}
+            cards={column.cards}
+            boardId={boardId}
+            on:cardMove={handleCardMove}
+          />
+          <button
+            on:click={() => addCard(column.id)}
+            class="w-full mt-2 px-3 py-1.5 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
+          >
+            + Add Card
+          </button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </div>
