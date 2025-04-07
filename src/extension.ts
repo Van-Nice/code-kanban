@@ -131,7 +131,71 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(disposable);
+  // Register command to open a specific board in the editor
+  const openBoardInEditorDisposable = vscode.commands.registerCommand(
+    "boogie.openBoardInEditor",
+    (boardId: string) => {
+      // Create a new webview panel
+      const panel = vscode.window.createWebviewPanel(
+        "kanbanBoard",
+        "Kanban Board",
+        vscode.ViewColumn.One,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [
+            vscode.Uri.file(path.join(context.extensionPath, "dist")),
+          ],
+        }
+      );
+
+      // Initialize message handler
+      messageHandler = new MessageHandler(panel.webview, context);
+
+      // Set up message listener
+      panel.webview.onDidReceiveMessage(
+        async (message) => {
+          await messageHandler.handleMessage(message);
+        },
+        undefined,
+        context.subscriptions
+      );
+
+      // Get the path to the compiled webview.js and convert it to a webview URI
+      const webviewJsPath = vscode.Uri.file(
+        path.join(context.extensionPath, "dist", "webview.js")
+      );
+      const webviewJsUri = panel.webview.asWebviewUri(webviewJsPath);
+
+      // Get the path to the CSS file
+      const webviewCssPath = vscode.Uri.file(
+        path.join(context.extensionPath, "dist", "webview.css")
+      );
+      const webviewCssUri = panel.webview.asWebviewUri(webviewCssPath);
+
+      // Set the HTML content with boardId in the URL
+      panel.webview.html = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link href="${webviewCssUri}" rel="stylesheet">
+          <title>Kanban Board</title>
+        </head>
+        <body>
+          <div id="app"></div>
+          <script>
+            window.boardId = "${boardId}";
+          </script>
+          <script src="${webviewJsUri}"></script>
+        </body>
+        </html>
+      `;
+    }
+  );
+
+  context.subscriptions.push(disposable, openBoardInEditorDisposable);
 }
 
 // This method is called when your extension is deactivated

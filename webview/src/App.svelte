@@ -23,6 +23,13 @@
 		if (boardId) {
 			currentBoardId = boardId;
 		}
+		
+		// Check if we have a board ID in the window object (for editor view)
+		// @ts-ignore - window.boardId is injected by the extension
+		if (window.boardId) {
+			// @ts-ignore
+			currentBoardId = window.boardId;
+		}
 	});
 
 	function handleExtensionMessage(message: any) {

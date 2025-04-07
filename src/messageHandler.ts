@@ -348,6 +348,12 @@ export class MessageHandler {
         }
         break;
 
+      case "openBoardInEditor":
+        // Open a board in the editor
+        const boardId = message.data.boardId;
+        vscode.commands.executeCommand("boogie.openBoardInEditor", boardId);
+        break;
+
       default:
         console.log(`Unknown command: ${message.command}`);
     }

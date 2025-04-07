@@ -86,6 +86,16 @@
       data: { boardId }
     });
   }
+
+  function openBoardInEditor(boardId: string, event: MouseEvent) {
+    event.stopPropagation();
+    
+    // Send message to extension
+    sendMessage({
+      command: 'openBoardInEditor',
+      data: { boardId }
+    });
+  }
 </script>
 
 <div class="p-4">
@@ -153,13 +163,26 @@
         >
           <div class="flex justify-between items-start">
             <h3 class="font-medium text-[var(--vscode-foreground)]">{board.title}</h3>
-            <button
-              on:click={(e: MouseEvent) => deleteBoard(board.id, e)}
-              class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-errorForeground)]"
-              title="Delete board"
-            >
-              ×
-            </button>
+            <div class="flex gap-1">
+              <button
+                on:click={(e: MouseEvent) => openBoardInEditor(board.id, e)}
+                class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)]"
+                title="Open in editor"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </button>
+              <button
+                on:click={(e: MouseEvent) => deleteBoard(board.id, e)}
+                class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-errorForeground)]"
+                title="Delete board"
+              >
+                ×
+              </button>
+            </div>
           </div>
           {#if board.description}
             <p class="text-sm text-[var(--vscode-descriptionForeground)] mt-1">{board.description}</p>
