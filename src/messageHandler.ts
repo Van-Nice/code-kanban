@@ -29,22 +29,35 @@ interface Card {
   assignee: string;
 }
 
-// In-memory storage for boards (in a real extension, this would be persisted)
-let boards: Board[] = [];
+// Storage key for boards in VSCode's global storage
+const BOARDS_STORAGE_KEY = "boogie.boards";
 
 export class MessageHandler {
   private webview: vscode.Webview;
+  private context: vscode.ExtensionContext;
 
-  constructor(webview: vscode.Webview) {
+  constructor(webview: vscode.Webview, context: vscode.ExtensionContext) {
     this.webview = webview;
+    this.context = context;
   }
 
-  public handleMessage(message: WebviewMessage): void {
+  // Get boards from storage
+  private getBoards(): Board[] {
+    return this.context.globalState.get<Board[]>(BOARDS_STORAGE_KEY, []);
+  }
+
+  // Save boards to storage
+  private async saveBoards(boards: Board[]): Promise<void> {
+    await this.context.globalState.update(BOARDS_STORAGE_KEY, boards);
+  }
+
+  public async handleMessage(message: WebviewMessage): Promise<void> {
     console.log("Received message from webview:", message);
 
     switch (message.command) {
       case "getBoards":
-        // Return all boards
+        // Return all boards from storage
+        const boards = this.getBoards();
         this.sendMessage({
           command: "boardsLoaded",
           data: { boards },
@@ -52,8 +65,9 @@ export class MessageHandler {
         break;
 
       case "getBoard":
-        // Return a specific board
-        const board = boards.find((b) => b.id === message.data.boardId);
+        // Return a specific board from storage
+        const allBoards = this.getBoards();
+        const board = allBoards.find((b) => b.id === message.data.boardId);
         if (board) {
           this.sendMessage({
             command: "boardLoaded",
@@ -74,7 +88,7 @@ export class MessageHandler {
         break;
 
       case "createBoard":
-        // Create a new board
+        // Create a new board and save to storage
         const newBoard: Board = {
           ...message.data,
           columns: [
@@ -83,7 +97,8 @@ export class MessageHandler {
             { id: "done", title: "Done", cards: [] },
           ],
         };
-        boards.push(newBoard);
+        const updatedBoards = [...this.getBoards(), newBoard];
+        await this.saveBoards(updatedBoards);
         this.sendMessage({
           command: "boardCreated",
           data: {
@@ -94,12 +109,14 @@ export class MessageHandler {
         break;
 
       case "deleteBoard":
-        // Delete a board
-        const boardIndex = boards.findIndex(
+        // Delete a board from storage
+        const boardsToUpdate = this.getBoards();
+        const boardIndex = boardsToUpdate.findIndex(
           (b) => b.id === message.data.boardId
         );
         if (boardIndex !== -1) {
-          boards.splice(boardIndex, 1);
+          boardsToUpdate.splice(boardIndex, 1);
+          await this.saveBoards(boardsToUpdate);
           this.sendMessage({
             command: "boardDeleted",
             data: {
@@ -119,8 +136,11 @@ export class MessageHandler {
         break;
 
       case "addCard":
-        // Add a card to a board's column
-        const targetBoard = boards.find((b) => b.id === message.data.boardId);
+        // Add a card to a board's column and save to storage
+        const boardsForAdd = this.getBoards();
+        const targetBoard = boardsForAdd.find(
+          (b) => b.id === message.data.boardId
+        );
         if (targetBoard) {
           const column = targetBoard.columns.find(
             (c) => c.id === message.data.columnId
@@ -128,6 +148,7 @@ export class MessageHandler {
           if (column) {
             column.cards.push(message.data.card);
             targetBoard.updatedAt = new Date().toISOString();
+            await this.saveBoards(boardsForAdd);
             this.sendMessage({
               command: "cardAdded",
               data: {
@@ -157,8 +178,11 @@ export class MessageHandler {
         break;
 
       case "updateCard":
-        // Update a card in a board's column
-        const boardToUpdate = boards.find((b) => b.id === message.data.boardId);
+        // Update a card in a board's column and save to storage
+        const boardsForUpdate = this.getBoards();
+        const boardToUpdate = boardsForUpdate.find(
+          (b) => b.id === message.data.boardId
+        );
         if (boardToUpdate) {
           const columnToUpdate = boardToUpdate.columns.find(
             (c) => c.id === message.data.columnId
@@ -170,6 +194,7 @@ export class MessageHandler {
             if (cardIndex !== -1) {
               columnToUpdate.cards[cardIndex] = message.data.card;
               boardToUpdate.updatedAt = new Date().toISOString();
+              await this.saveBoards(boardsForUpdate);
               this.sendMessage({
                 command: "cardUpdated",
                 data: {
@@ -208,8 +233,9 @@ export class MessageHandler {
         break;
 
       case "deleteCard":
-        // Delete a card from a board's column
-        const boardForDelete = boards.find(
+        // Delete a card from a board's column and save to storage
+        const boardsForDelete = this.getBoards();
+        const boardForDelete = boardsForDelete.find(
           (b) => b.id === message.data.boardId
         );
         if (boardForDelete) {
@@ -223,6 +249,7 @@ export class MessageHandler {
             if (cardIndex !== -1) {
               columnForDelete.cards.splice(cardIndex, 1);
               boardForDelete.updatedAt = new Date().toISOString();
+              await this.saveBoards(boardsForDelete);
               this.sendMessage({
                 command: "cardDeleted",
                 data: {
@@ -261,8 +288,11 @@ export class MessageHandler {
         break;
 
       case "moveCard":
-        // Move a card from one column to another
-        const boardForMove = boards.find((b) => b.id === message.data.boardId);
+        // Move a card from one column to another and save to storage
+        const boardsForMove = this.getBoards();
+        const boardForMove = boardsForMove.find(
+          (b) => b.id === message.data.boardId
+        );
         if (boardForMove) {
           const fromColumn = boardForMove.columns.find(
             (c) => c.id === message.data.fromColumnId
@@ -279,6 +309,7 @@ export class MessageHandler {
               const [card] = fromColumn.cards.splice(cardIndex, 1);
               toColumn.cards.push(card);
               boardForMove.updatedAt = new Date().toISOString();
+              await this.saveBoards(boardsForMove);
               this.sendMessage({
                 command: "cardMoved",
                 data: {

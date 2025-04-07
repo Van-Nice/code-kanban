@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import * as path from "path";
 import { MessageHandler } from "./messageHandler";
@@ -37,12 +35,12 @@ export function activate(context: vscode.ExtensionContext) {
         const webviewCssUri = webviewView.webview.asWebviewUri(webviewCssPath);
 
         // Initialize the message handler
-        messageHandler = new MessageHandler(webviewView.webview);
+        messageHandler = new MessageHandler(webviewView.webview, context);
 
         // Set up message listener
         webviewView.webview.onDidReceiveMessage(
-          (message) => {
-            messageHandler.handleMessage(message);
+          async (message) => {
+            await messageHandler.handleMessage(message);
           },
           undefined,
           context.subscriptions
@@ -91,12 +89,12 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       // Initialize message handler
-      messageHandler = new MessageHandler(panel.webview);
+      messageHandler = new MessageHandler(panel.webview, context);
 
       // Set up message listener
       panel.webview.onDidReceiveMessage(
-        (message) => {
-          messageHandler.handleMessage(message);
+        async (message) => {
+          await messageHandler.handleMessage(message);
         },
         undefined,
         context.subscriptions
