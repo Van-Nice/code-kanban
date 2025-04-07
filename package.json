@@ -1,6 +1,6 @@
 {
   "name": "boogie",
-  "displayName": "Boogie",
+  "displayName": "boogie",
   "description": "Kanban board and to do list fully integrated into vscode",
   "version": "0.0.1",
   "engines": {
@@ -9,19 +9,42 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:boogieWebview",
+    "onCommand:boogie.openKanbanBoard"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "boogie",
+          "title": "Boogie Boards",
+          "icon": "icons/boogieboard.svg"
+        }
+      ]
+    },
+    "views": {
+      "boogie": [
+        {
+          "id": "boogieWebview",
+          "name": "Boogie Boards",
+          "type": "webview",
+          "icon": "icons/boogieboard.svg"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "boogie.helloWorld",
-        "title": "Hello World"
+        "command": "boogie.openKanbanBoard",
+        "title": "Open Kanban Board"
       }
     ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
+    "compile-all": "npm run build --prefix webview && npm run compile",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir out",

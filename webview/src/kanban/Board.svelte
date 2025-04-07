@@ -1,0 +1,153 @@
+<script lang="ts">
+  import Column from './Column.svelte';
+  import { v4 as uuidv4 } from 'uuid';
+  import { onMount, onDestroy } from 'svelte';
+  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener } from '../utils/vscodeMessaging';
+
+  export let boardId: string;
+
+  interface Card {
+    id: string;
+    title: string;
+    description: string;
+    labels: string[];
+    assignee: string;
+  }
+
+  interface Column {
+    id: string;
+    title: string;
+    cards: Card[];
+  }
+
+  let columns: Column[] = [
+    { id: 'todo', title: 'To Do', cards: [] },
+    { id: 'in-progress', title: 'In Progress', cards: [] },
+    { id: 'done', title: 'Done', cards: [] }
+  ];
+
+  let messageHandler: (message: any) => void;
+
+  onMount(() => {
+    // Initialize VSCode API
+    initializeVSCodeApi();
+    
+    // Set up message listener
+    messageHandler = (message) => {
+      handleExtensionMessage(message);
+    };
+    setupMessageListener(messageHandler);
+
+    // Request board data from extension
+    sendMessage({
+      command: 'getBoard',
+      data: { boardId }
+    });
+  });
+
+  onDestroy(() => {
+    // Clean up message listener
+    if (messageHandler) {
+      removeMessageListener(messageHandler);
+    }
+  });
+
+  function handleExtensionMessage(message: any) {
+    switch (message.command) {
+      case 'boardLoaded':
+        if (message.data.success) {
+          columns = message.data.columns;
+        }
+        break;
+      case 'cardAdded':
+        if (message.data.success) {
+          const { card, columnId } = message.data;
+          updateColumnCards(columnId, [...getColumnCards(columnId), card]);
+        }
+        break;
+      case 'cardUpdated':
+        if (message.data.success) {
+          const { card, columnId } = message.data;
+          updateColumnCards(columnId, getColumnCards(columnId).map(c => c.id === card.id ? card : c));
+        }
+        break;
+      case 'cardDeleted':
+        if (message.data.success) {
+          const { cardId, columnId } = message.data;
+          updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
+        }
+        break;
+      case 'cardMoved':
+        if (message.data.success) {
+          const { cardId, fromColumnId, toColumnId } = message.data;
+          const card = getColumnCards(fromColumnId).find(c => c.id === cardId);
+          if (card) {
+            updateColumnCards(fromColumnId, getColumnCards(fromColumnId).filter(c => c.id !== cardId));
+            updateColumnCards(toColumnId, [...getColumnCards(toColumnId), card]);
+          }
+        }
+        break;
+      default:
+        console.log('Unknown message:', message);
+    }
+  }
+
+  function getColumnCards(columnId: string): Card[] {
+    const column = columns.find(col => col.id === columnId);
+    return column ? column.cards : [];
+  }
+
+  function updateColumnCards(columnId: string, cards: Card[]) {
+    columns = columns.map(col => 
+      col.id === columnId ? { ...col, cards } : col
+    );
+  }
+
+  function addCard(columnId: string) {
+    const newCard: Card = {
+      id: uuidv4(),
+      title: 'New Card',
+      description: '',
+      labels: [],
+      assignee: ''
+    };
+
+    // Send message to extension
+    sendMessage({
+      command: 'addCard',
+      data: { card: newCard, columnId, boardId }
+    });
+  }
+
+  function handleCardMove(event: CustomEvent) {
+    const { cardId, fromColumnId, toColumnId } = event.detail;
+
+    // Send message to extension
+    sendMessage({
+      command: 'moveCard',
+      data: { cardId, fromColumnId, toColumnId, boardId }
+    });
+  }
+</script>
+
+<div class="h-full">
+  <div class="flex gap-4 p-4 min-h-screen">
+    {#each columns as column (column.id)}
+      <div class="flex-shrink-0 w-72">
+        <Column
+          id={column.id}
+          title={column.title}
+          cards={column.cards}
+          boardId={boardId}
+          on:cardMove={handleCardMove}
+        />
+        <button
+          on:click={() => addCard(column.id)}
+          class="w-full mt-2 px-3 py-1.5 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
+        >
+          + Add Card
+        </button>
+      </div>
+    {/each}
+  </div>
+</div>
