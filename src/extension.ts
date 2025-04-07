@@ -34,8 +34,12 @@ export function activate(context: vscode.ExtensionContext) {
         );
         const webviewCssUri = webviewView.webview.asWebviewUri(webviewCssPath);
 
-        // Initialize the message handler
-        messageHandler = new MessageHandler(webviewView.webview, context);
+        // Initialize the message handler with sidebar context
+        messageHandler = new MessageHandler(
+          webviewView.webview,
+          context,
+          "sidebar"
+        );
 
         // Set up message listener
         webviewView.webview.onDidReceiveMessage(
@@ -58,6 +62,9 @@ export function activate(context: vscode.ExtensionContext) {
 					</head>
 					<body>
 						<div id="app"></div>
+						<script>
+							window.webviewContext = "sidebar";
+						</script>
 						<script src="${webviewJsUri}"></script>
 					</body>
 					</html>
@@ -88,8 +95,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
       );
 
-      // Initialize message handler
-      messageHandler = new MessageHandler(panel.webview, context);
+      // Initialize message handler with editor context
+      messageHandler = new MessageHandler(panel.webview, context, "editor");
 
       // Set up message listener
       panel.webview.onDidReceiveMessage(
@@ -124,6 +131,9 @@ export function activate(context: vscode.ExtensionContext) {
         </head>
         <body>
           <div id="app"></div>
+          <script>
+            window.webviewContext = "editor";
+          </script>
           <script src="${webviewJsUri}"></script>
         </body>
         </html>
@@ -149,8 +159,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
       );
 
-      // Initialize message handler
-      messageHandler = new MessageHandler(panel.webview, context);
+      // Initialize message handler with editor context
+      messageHandler = new MessageHandler(panel.webview, context, "editor");
 
       // Set up message listener
       panel.webview.onDidReceiveMessage(
@@ -187,6 +197,7 @@ export function activate(context: vscode.ExtensionContext) {
           <div id="app"></div>
           <script>
             window.boardId = "${boardId}";
+            window.webviewContext = "editor";
           </script>
           <script src="${webviewJsUri}"></script>
         </body>

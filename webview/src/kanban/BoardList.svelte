@@ -1,7 +1,7 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
   import { onMount } from 'svelte';
-  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener } from '../utils/vscodeMessaging';
+  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from '../utils/vscodeMessaging';
 
   export let onBoardSelect: (boardId: string) => void;
 
@@ -18,10 +18,14 @@
   let newBoardDescription = '';
   let isCreatingBoard = false;
   let messageHandler: (message: any) => void;
+  let webviewContext: string;
 
   onMount(() => {
     // Initialize VSCode API
     initializeVSCodeApi();
+    
+    // Get the webview context
+    webviewContext = getWebviewContext();
     
     // Set up message listener
     messageHandler = (message) => {

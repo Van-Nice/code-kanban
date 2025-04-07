@@ -2,7 +2,7 @@
   import Column from './Column.svelte';
   import { v4 as uuidv4 } from 'uuid';
   import { onMount, onDestroy } from 'svelte';
-  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener } from '../utils/vscodeMessaging';
+  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from '../utils/vscodeMessaging';
 
   export let boardId: string;
 
@@ -27,10 +27,14 @@
   ];
 
   let messageHandler: (message: any) => void;
+  let webviewContext: string;
 
   onMount(() => {
     // Initialize VSCode API
     initializeVSCodeApi();
+    
+    // Get the webview context
+    webviewContext = getWebviewContext();
     
     // Set up message listener
     messageHandler = (message) => {
@@ -57,6 +61,9 @@
       case 'boardLoaded':
         if (message.data.success) {
           columns = message.data.columns;
+          if (message.data.context) {
+            webviewContext = message.data.context;
+          }
         }
         break;
       case 'cardAdded':

@@ -6,6 +6,7 @@ export interface VSCodeMessage {
 
 // Get the VSCode API
 let vscodeApi: any;
+let webviewContext: string = "sidebar";
 
 // Initialize the VSCode API
 export function initializeVSCodeApi() {
@@ -13,7 +14,20 @@ export function initializeVSCodeApi() {
     // @ts-ignore - acquireVsCodeApi is injected by VSCode
     vscodeApi = acquireVsCodeApi();
   }
+
+  // Get the webview context from the window object
+  // @ts-ignore - window.webviewContext is injected by the extension
+  if (window.webviewContext) {
+    // @ts-ignore
+    webviewContext = window.webviewContext;
+  }
+
   return vscodeApi;
+}
+
+// Get the webview context
+export function getWebviewContext(): string {
+  return webviewContext;
 }
 
 // Send a message to the extension

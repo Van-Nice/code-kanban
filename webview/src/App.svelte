@@ -2,14 +2,18 @@
 	import Board from './kanban/Board.svelte';
 	import BoardList from './kanban/BoardList.svelte';
 	import { onMount } from 'svelte';
-	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener } from './utils/vscodeMessaging';
+	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from './utils/vscodeMessaging';
 
 	let currentBoardId: string | null = null;
 	let messageHandler: (message: any) => void;
+	let webviewContext: string;
 
 	onMount(() => {
 		// Initialize VSCode API
 		initializeVSCodeApi();
+		
+		// Get the webview context
+		webviewContext = getWebviewContext();
 		
 		// Set up message listener
 		messageHandler = (message) => {

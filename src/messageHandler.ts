@@ -35,10 +35,16 @@ const BOARDS_STORAGE_KEY = "boogie.boards";
 export class MessageHandler {
   private webview: vscode.Webview;
   private context: vscode.ExtensionContext;
+  private webviewContext: string;
 
-  constructor(webview: vscode.Webview, context: vscode.ExtensionContext) {
+  constructor(
+    webview: vscode.Webview,
+    context: vscode.ExtensionContext,
+    webviewContext: string = "sidebar"
+  ) {
     this.webview = webview;
     this.context = context;
+    this.webviewContext = webviewContext;
   }
 
   // Get boards from storage
@@ -53,6 +59,7 @@ export class MessageHandler {
 
   public async handleMessage(message: WebviewMessage): Promise<void> {
     console.log("Received message from webview:", message);
+    console.log("Webview context:", this.webviewContext);
 
     switch (message.command) {
       case "getBoards":
@@ -74,6 +81,7 @@ export class MessageHandler {
             data: {
               success: true,
               columns: board.columns,
+              context: this.webviewContext,
             },
           });
         } else {
