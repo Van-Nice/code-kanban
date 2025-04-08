@@ -13,6 +13,7 @@
   let webviewContext = getWebviewContext();
   let isDraggingOver = false;
   let dragOverIndex = -1;
+  let isCollapsed = false; // Track collapse state
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
@@ -83,6 +84,10 @@
       }));
     }
   }
+
+  function toggleCollapse() {
+    isCollapsed = !isCollapsed;
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -94,6 +99,15 @@
 >
   <div class="flex justify-between items-center mb-3">
     <h3 class="text-base font-medium text-[var(--vscode-foreground)]">{title}</h3>
+    <!-- Collapse button -->
+    <button 
+      on:click={toggleCollapse}
+      class="w-6 h-6 flex items-center justify-center rounded-full bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-foreground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none mr-2"
+      title={isCollapsed ? "Expand" : "Collapse"}
+    >
+      {isCollapsed ? "↓" : "↑"}
+    </button>
+    <!-- Add card button -->
     <button 
       on:click={() => onAddCard(id)}
       class="ml-2 w-6 h-6 flex items-center justify-center rounded-full bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-foreground)] hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
@@ -101,24 +115,29 @@
       +
     </button>
   </div>
-
-  <div class="p-2 flex-1 overflow-y-auto space-y-2 {webviewContext === 'sidebar' ? 'max-h-[200px]' : 'min-h-[200px]'} cards-list">
-    {#each cards as card, index (card.id)}
-      <div 
-        class="card-item relative transition-transform duration-100 hover:-translate-y-0.5 {isDraggingOver && dragOverIndex === index ? 'before:content-[""] before:absolute before:top-[-4px] before:left-0 before:right-0 before:h-[2px] before:bg-[var(--vscode-focusBorder)] before:z-10' : ''}"
-        draggable="true" 
-        on:dragstart={(e: DragEvent) => handleDragStart(e, card)}
-      >
-        <Card 
-          {...card} 
-          columnId={id}
-          boardId={boardId}
-        />
-      </div>
-    {/each}
-    
-    {#if isDraggingOver && dragOverIndex === cards.length}
-      <div class="h-2 my-2 rounded bg-[var(--vscode-focusBorder)]"></div>
-    {/if}
-  </div>
+  {#if !isCollapsed}
+    <div class="p-2 flex-1 overflow-y-auto space-y-2 cards-list">
+      {#each cards as card, index (card.id)}
+        <div 
+          class="card-item relative transition-transform duration-100 hover:-translate-y-0.5 {isDraggingOver && dragOverIndex === index ? 'before:content-[""] before:absolute before:top-[-4px] before:left-0 before:right-0 before:h-[2px] before:bg-[var(--vscode-focusBorder)] before:z-10' : ''}"
+          draggable="true" 
+          on:dragstart={(e: DragEvent) => handleDragStart(e, card)}
+        >
+          <Card 
+            {...card} 
+            columnId={id}
+            boardId={boardId}
+          />
+        </div>
+      {/each}
+      
+      {#if isDraggingOver && dragOverIndex === cards.length}
+        <div class="h-2 my-2 rounded bg-[var(--vscode-focusBorder)]"></div>
+      {/if}
+    </div>
+  {:else}
+    <div class="p-2 text-center text-[var(--vscode-descriptionForeground)] text-sm">
+      {cards.length} {cards.length === 1 ? 'card' : 'cards'} hidden
+    </div>    
+  {/if}
 </div>
