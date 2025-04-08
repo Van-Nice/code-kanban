@@ -5,8 +5,10 @@ export default {
     typescript: {
       compilerOptions: {
         types: ["svelte"],
-        runes: true
       },
     },
   }),
+  compilerOptions: {
+    runes: true,
+  },
 };

@@ -3,7 +3,9 @@
   import { onMount } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from '../utils/vscodeMessaging';
 
-  export let onBoardSelect: (boardId: string) => void;
+  const { onBoardSelect } = $props<{
+    onBoardSelect: (boardId: string) => void;
+  }>();
 
   interface Board {
     id: string;

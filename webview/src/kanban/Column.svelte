@@ -1,13 +1,15 @@
 <script lang="ts">
   import Card from './Card.svelte';
-  import { createEventDispatcher } from 'svelte';
   import { getWebviewContext } from '../utils/vscodeMessaging';
+  import { createEventDispatcher } from 'svelte';
 
-  export let id: string;
-  export let title: string;
-  export let cards: any[] = [];
-  export let boardId: string;
-  export let onAddCard: (columnId: string) => void;
+  const { id, title, cards = [], boardId, onAddCard } = $props<{
+    id: string;
+    title: string;
+    cards?: any[];
+    boardId: string;
+    onAddCard: (columnId: string) => void;
+  }>();
 
   const dispatch = createEventDispatcher();
   let webviewContext = getWebviewContext();

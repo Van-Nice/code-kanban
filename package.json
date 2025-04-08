@@ -3,6 +3,7 @@
   "displayName": "boogie",
   "description": "Kanban board and to do list fully integrated into vscode",
   "version": "0.0.1",
+  "publisher": "wilsonvannice",
   "engines": {
     "vscode": "^1.99.0"
   },

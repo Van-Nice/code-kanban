@@ -4,7 +4,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from '../utils/vscodeMessaging';
 
-  export let boardId: string;
+  const { boardId } = $props<{
+    boardId: string;
+  }>();
 
   interface Card {
     id: string;
@@ -14,13 +16,13 @@
     assignee: string;
   }
 
-  interface Column {
+  interface ColumnData {
     id: string;
     title: string;
     cards: Card[];
   }
 
-  let columns: Column[] = [
+  let columns: ColumnData[] = [
     { id: 'todo', title: 'To Do', cards: [] },
     { id: 'in-progress', title: 'In Progress', cards: [] },
     { id: 'done', title: 'Done', cards: [] }

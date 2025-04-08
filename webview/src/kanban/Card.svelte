@@ -3,13 +3,15 @@
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
 
-  export let id: string = uuidv4();
-  export let title: string;
-  export let description: string = '';
-  export let labels: string[] = [];
-  export let assignee: string = '';
-  export let columnId: string;
-  export let boardId: string;
+  const { id = uuidv4(), title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
+    id?: string;
+    title: string;
+    description?: string;
+    labels?: string[];
+    assignee?: string;
+    columnId: string;
+    boardId: string;
+  }>();
 
   let isEditing = false;
   let editedTitle = title;
@@ -98,10 +100,20 @@
   }
 </script>
 
-<div 
+<div
+  role="button"
+  tabindex="0"
+  aria-label="Draggable card: {title}"
   class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded shadow-sm hover:border-[var(--vscode-focusBorder)] transition-all duration-200 ease-in-out {isDragging ? 'opacity-50 border-[var(--vscode-focusBorder)]' : ''}"
   on:dragstart={handleDragStart}
   on:dragend={handleDragEnd}
+  on:keydown={(e: KeyboardEvent) => {
+    // Handle keyboard events for accessibility
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      startEditing();
+    }
+  }}
 >
   {#if isEditing}
     <div class="p-3 space-y-3">
