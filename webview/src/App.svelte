@@ -4,10 +4,10 @@
 	import { onMount } from 'svelte';
 	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from './utils/vscodeMessaging';
   
-	let currentBoardId: string | null = null;
-	let messageHandler: (message: any) => void;
-	let webviewContext: string;
-	let theme = 'dark'; // Default theme
+    let currentBoardId = $state<string | null>(null);
+    let messageHandler: (message: any) => void;
+    let webviewContext: string;
+    let theme = $state<string>('dark'); // Default theme
   
 	onMount(() => {
 	  // Initialize VSCode API
@@ -104,7 +104,7 @@
 	  <div class="p-4">
 		<div class="mb-4 flex items-center">
 		  <button
-			on:click={handleBackToBoards}
+			onclick={handleBackToBoards}
 			class="px-2 py-1 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] inline-flex items-center gap-1"
 		  >
 			<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

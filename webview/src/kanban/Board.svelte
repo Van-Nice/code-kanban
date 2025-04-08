@@ -24,9 +24,9 @@
 
   let columns = $state<ColumnData[]>([]);
   let messageHandler: (message: any) => void;
-  let webviewContext: string;
-  let isLoading = true;
-  let boardTitle = '';
+  let webviewContext = $state<string>('');
+  let isLoading = $state(true);
+  let boardTitle = $state('');
 
   onMount(() => {
     // Initialize VSCode API
@@ -167,7 +167,7 @@
     <div class="mb-4 flex justify-between items-center">
       <h2 class="text-lg font-medium text-[var(--vscode-foreground)]">{boardTitle}</h2>
       <button
-        on:click={addColumn}
+        onclick={addColumn}
         class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] flex items-center gap-1"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -214,7 +214,7 @@
         <!-- Add column placeholder -->
         <div class="flex-shrink-0 w-72 border border-dashed border-[var(--vscode-panel-border)] rounded-sm h-full flex items-center justify-center">
           <button
-            on:click={addColumn}
+            onclick={addColumn}
             class="flex flex-col items-center justify-center p-4 w-full h-full text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] transition-colors rounded-sm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -236,7 +236,7 @@
         </svg>
         <p class="mt-4 text-[var(--vscode-descriptionForeground)] text-sm">No columns found. Add a column to get started.</p>
         <button
-          on:click={addColumn}
+          onclick={addColumn}
           class="mt-4 px-3 py-1.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
         >
           Add Column

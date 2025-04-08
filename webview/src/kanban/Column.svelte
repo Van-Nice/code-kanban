@@ -13,10 +13,10 @@
 
   const dispatch = createEventDispatcher();
   let webviewContext = getWebviewContext();
-  let isDraggingOver = false;
-  let dragOverIndex = -1;
-  let isCollapsed = false; // Track collapse state
-  let isHovered = false;
+  let isDraggingOver = $state(false);
+  let dragOverIndex = $state(-1);
+  let isCollapsed = $state(false); // Track collapse state
+  let isHovered = $state(false);
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
@@ -87,19 +87,20 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div 
+<div
+  role="region"
+  aria-label="Kanban column: {title}"
   class="bg-[var(--vscode-sideBar-background)] border border-[var(--vscode-panel-border)] rounded-sm h-full flex flex-col {webviewContext === 'sidebar' ? 'mb-4' : ''} {isDraggingOver ? 'border-[var(--vscode-focusBorder)]' : ''} hover:border-[var(--vscode-panel-border)] transition-colors"
-  on:dragover={handleDragOver}
-  on:dragleave={handleDragLeave}
-  on:drop={handleDrop}
-  on:mouseenter={() => isHovered = true}
-  on:mouseleave={() => isHovered = false}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+  onmouseenter={() => isHovered = true}
+  onmouseleave={() => isHovered = false}
 >
   <div class="flex justify-between items-center p-2 border-b border-[var(--vscode-panel-border)]">
     <div class="flex items-center gap-2">
       <button 
-        on:click={toggleCollapse}
+        onclick={toggleCollapse}
         class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
         title={isCollapsed ? "Expand" : "Collapse"}
         aria-label={isCollapsed ? "Expand column" : "Collapse column"}
@@ -113,12 +114,12 @@
         </svg>
       </button>
       <h3 class="text-sm font-medium text-[var(--vscode-foreground)]">{title}</h3>
-      <span class="text-xs text-[var(--vscode-descriptionForeground)] bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] px-1.5 py-0.5 rounded-sm">
+      <span class="text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] px-1.5 py-0.5 rounded-sm">
         {cards.length}
       </span>
     </div>
     <button 
-      on:click={() => onAddCard(id)}
+      onclick={() => onAddCard(id)}
       class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
       title="Add card"
       aria-label="Add card to column"

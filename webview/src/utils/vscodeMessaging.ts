@@ -7,6 +7,11 @@ export interface VSCodeMessage {
 // Get the VSCode API
 let vscodeApi: any;
 let webviewContext: string = "sidebar";
+// Map to store event handler references
+const messageListeners = new Map<
+  (message: VSCodeMessage) => void,
+  (event: MessageEvent) => void
+>();
 
 // Initialize the VSCode API
 export function initializeVSCodeApi() {
@@ -42,18 +47,30 @@ export function sendMessage(message: VSCodeMessage) {
 export function setupMessageListener(
   callback: (message: VSCodeMessage) => void
 ) {
-  window.addEventListener("message", (event) => {
+  // Create the event handler function
+  const eventHandler = (event: MessageEvent) => {
     const message = event.data as VSCodeMessage;
     callback(message);
-  });
+  };
+
+  // Store reference to the handler
+  messageListeners.set(callback, eventHandler);
+
+  // Add event listener
+  window.addEventListener("message", eventHandler);
 }
 
 // Remove a message listener
 export function removeMessageListener(
   callback: (message: VSCodeMessage) => void
 ) {
-  window.removeEventListener("message", (event) => {
-    const message = event.data as VSCodeMessage;
-    callback(message);
-  });
+  // Get the stored event handler
+  const eventHandler = messageListeners.get(callback);
+
+  if (eventHandler) {
+    // Remove the event listener using the same function reference
+    window.removeEventListener("message", eventHandler);
+    // Remove from our map
+    messageListeners.delete(callback);
+  }
 }

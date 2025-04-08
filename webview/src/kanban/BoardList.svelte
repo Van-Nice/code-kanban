@@ -21,7 +21,7 @@
   let isCreatingBoard = $state(false);
   let messageHandler: (message: any) => void;
   let webviewContext: string;
-  let isLoading = true;
+  let isLoading = $state(true);
   let searchQuery = $state('');
 
   let filteredBoards = $derived(
@@ -121,7 +121,7 @@
   <div class="flex justify-between items-center mb-4">
     <h1 class="text-xl font-medium text-[var(--vscode-foreground)]">Kanban Boards</h1>
     <button
-      on:click={() => isCreatingBoard = true}
+      onclick={() => isCreatingBoard = true}
       class="px-3 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] flex items-center gap-1"
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -154,6 +154,7 @@
       <h2 class="text-sm font-medium text-[var(--vscode-foreground)] mb-3">Create New Board</h2>
       <div class="mb-3">
         <label for="board-title" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Title</label>
+        <!-- svelte-ignore a11y_autofocus -->
         <input
           type="text"
           id="board-title"
@@ -175,13 +176,13 @@
       </div>
       <div class="flex justify-end gap-2">
         <button
-          on:click={() => isCreatingBoard = false}
+          onclick={() => isCreatingBoard = false}
           class="px-2 py-1 text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
         >
           Cancel
         </button>
         <button
-          on:click={createBoard}
+          onclick={createBoard}
           class="px-2 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
         >
           Create
@@ -221,8 +222,8 @@
       {#each filteredBoards as board (board.id)}
         <div 
           class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-sm p-4 cursor-pointer hover:border-[var(--vscode-focusBorder)] transition-colors text-left group"
-          on:click={() => onBoardSelect(board.id)}
-          on:keydown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onBoardSelect(board.id); }}
+          onclick={() => onBoardSelect(board.id)}
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onBoardSelect(board.id); }}
           tabindex="0"
           role="button"
           aria-label={`Select board ${board.title}`}
@@ -232,13 +233,14 @@
             <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <!-- Open in editor button -->
               <button
-                on:click|stopPropagation={(e: MouseEvent) => openBoardInEditor(board.id, e)}
-                on:keydown|stopPropagation={(e: KeyboardEvent) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openBoardInEditor(board.id, e);
-                  }
-                }}
+              onclick={(e: MouseEvent) => { e.stopPropagation(); openBoardInEditor(board.id, e); }}
+              onkeydown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openBoardInEditor(board.id, e);
+                }
+              }}
                 class="p-1 text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
                 title="Open in editor"
                 aria-label="Open in editor"
@@ -251,10 +253,11 @@
               </button>
               <!-- Delete button -->
               <button
-                on:click|stopPropagation={(e: MouseEvent) => deleteBoard(board.id, e)}
-                on:keydown|stopPropagation={(e: KeyboardEvent) => {
+                onclick={(e: MouseEvent) => { e.stopPropagation(); deleteBoard(board.id, e); }}
+                onkeydown={(e: KeyboardEvent) => {
                   if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault(); 
+                    e.preventDefault();
+                    e.stopPropagation();
                     deleteBoard(board.id, e);
                   }
                 }}

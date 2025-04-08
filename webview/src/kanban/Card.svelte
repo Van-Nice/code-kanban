@@ -2,6 +2,7 @@
   import { v4 as uuidv4 } from 'uuid';
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
+  import { onMount } from 'svelte';
 
   const { id = uuidv4(), title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
     id?: string;
@@ -13,14 +14,16 @@
     boardId: string;
   }>();
 
-  let isEditing = false;
-  let editedTitle = title;
-  let editedDescription = description;
-  let editedLabels = [...labels];
-  let editedAssignee = assignee;
-  let newLabel = '';
+  // Add $state to all reactive variables
+  let isEditing = $state(false);
+  let editedTitle = $state(title);
+  let editedDescription = $state(description);
+  let editedLabels = $state([...labels]);
+  let editedAssignee = $state(assignee);
+  let newLabel = $state('');
   let webviewContext = getWebviewContext();
-  let isDragging = false;
+  let isDragging = $state(false);
+  let cardTitleInput = $state<HTMLInputElement | null>(null);
 
   function startEditing() {
     isEditing = true;
@@ -29,6 +32,16 @@
     editedLabels = [...labels];
     editedAssignee = assignee;
   }
+
+
+  onMount(() => {
+    // Programmatic focus when editing starts
+    $effect(() => {
+      if (isEditing && cardTitleInput) {
+        setTimeout(() => cardTitleInput?.focus(), 50);
+      }
+    });
+  });
 
   function saveChanges() {
     if (!editedTitle.trim()) return;
@@ -95,6 +108,10 @@
   function handleDragEnd() {
     isDragging = false;
   }
+  
+  function handleCardClick() {
+    startEditing();
+  }
 </script>
 
 <div
@@ -102,10 +119,10 @@
   tabindex="0"
   aria-label="Draggable card: {title}"
   class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out {isDragging ? 'opacity-50 border-[var(--vscode-focusBorder)]' : ''} hover:border-[var(--vscode-focusBorder)]"
-  on:dragstart={handleDragStart}
-  on:dragend={handleDragEnd}
+  ondragstart={handleDragStart}
+  ondragend={handleDragEnd}
   draggable={!isEditing}
-  on:keydown={(e: KeyboardEvent) => {
+  onkeydown={(e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       startEditing();
@@ -116,9 +133,11 @@
     <div class="p-3 space-y-3">
       <div>
         <label for="card-title" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Title</label>
+        <!-- svelte-ignore a11y_autofocus -->
         <input
           type="text"
           id="card-title"
+          bind:this={cardTitleInput}
           bind:value={editedTitle}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           autofocus
@@ -144,13 +163,13 @@
         />
       </div>
       <div>
-        <label class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Labels</label>
+        <label for="new-label" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Labels</label>
         <div class="flex flex-wrap gap-1 mb-2">
           {#each editedLabels as label}
             <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)]">
               {label}
               <button
-                on:click={() => removeLabel(label)}
+                onclick={() => removeLabel(label)}
                 class="ml-1 text-[var(--vscode-badge-foreground)] hover:text-[var(--vscode-errorForeground)]"
                 aria-label="Remove label {label}"
               >
@@ -166,9 +185,10 @@
           <input
             type="text"
             bind:value={newLabel}
+            id="new-label"
             class="flex-1 px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-l-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
             placeholder="Add label..."
-            on:keydown={(e) => {
+            onkeydown={(e: KeyboardEvent) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 addLabel();
@@ -176,7 +196,7 @@
             }}
           />
           <button
-            on:click={addLabel}
+            onclick={addLabel}
             class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-r-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Add
@@ -185,7 +205,7 @@
       </div>
       <div class="flex justify-between pt-2">
         <button
-          on:click={deleteCard}
+          onclick={deleteCard}
           class="px-2 py-1 text-sm text-[var(--vscode-errorForeground)] border border-[var(--vscode-errorForeground)] rounded-sm hover:bg-[var(--vscode-errorForeground)] hover:text-[var(--vscode-editor-background)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-errorForeground)]"
         >
           <span class="flex items-center gap-1">
@@ -201,13 +221,13 @@
         </button>
         <div class="flex gap-2">
           <button
-            on:click={cancelEditing}
+            onclick={cancelEditing}
             class="px-2 py-1 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Cancel
           </button>
           <button
-            on:click={saveChanges}
+            onclick={saveChanges}
             class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Save
@@ -216,13 +236,22 @@
       </div>
     </div>
   {:else}
-    <div class="p-3 cursor-pointer" on:click={startEditing}>
+    <div
+      role="button"
+      tabindex="0"
+      class="p-3 cursor-pointer"
+      onclick={startEditing}
+      onkeydown={(e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          startEditing();
+        }
+      }}
+    >
       <div class="flex justify-between items-start gap-2">
         <h3 class="text-sm font-medium text-[var(--vscode-foreground)] break-words">{title}</h3>
         <button
-          on:click|stopPropagation={startEditing}
-          class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] flex-shrink-0"
-          title="Edit card"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); startEditing(); }}          title="Edit card"
           aria-label="Edit card"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

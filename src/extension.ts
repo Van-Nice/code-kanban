@@ -2,8 +2,8 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { MessageHandler } from "./messageHandler";
 
+// Using context for extension-wide data, not global messageHandler
 let extensionContext: vscode.ExtensionContext;
-let messageHandler: MessageHandler;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -34,8 +34,8 @@ export function activate(context: vscode.ExtensionContext) {
         );
         const webviewCssUri = webviewView.webview.asWebviewUri(webviewCssPath);
 
-        // Initialize the message handler with sidebar context
-        messageHandler = new MessageHandler(
+        // Initialize the message handler with sidebar context - instance specific
+        const messageHandler = new MessageHandler(
           webviewView.webview,
           context,
           "sidebar"
@@ -95,8 +95,12 @@ export function activate(context: vscode.ExtensionContext) {
         }
       );
 
-      // Initialize message handler with editor context
-      messageHandler = new MessageHandler(panel.webview, context, "editor");
+      // Initialize message handler with editor context - instance specific
+      const messageHandler = new MessageHandler(
+        panel.webview,
+        context,
+        "editor"
+      );
 
       // Set up message listener
       panel.webview.onDidReceiveMessage(
@@ -159,8 +163,12 @@ export function activate(context: vscode.ExtensionContext) {
         }
       );
 
-      // Initialize message handler with editor context
-      messageHandler = new MessageHandler(panel.webview, context, "editor");
+      // Initialize message handler with editor context - instance specific
+      const messageHandler = new MessageHandler(
+        panel.webview,
+        context,
+        "editor"
+      );
 
       // Set up message listener
       panel.webview.onDidReceiveMessage(
