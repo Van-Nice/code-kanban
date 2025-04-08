@@ -1,71 +1,58 @@
-# boogie README
+# Boogie - Kanban Board Extension for VS Code
 
-This is the README for your extension "boogie". After writing up a brief description, we recommend including the following sections.
+Boogie is a Kanban board extension for VS Code that helps you manage tasks and workflows directly within your development environment.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Create and manage multiple Kanban boards
+- Drag and drop cards between columns
+- View boards in the sidebar or in a dedicated editor tab
+- Customize card details with titles, descriptions, labels, and assignees
+- Collapse columns to save space
+- Persistent storage of boards and cards
 
-For example if there is an image subfolder under your extension project workspace:
+## Installation
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Install the extension from the VS Code Marketplace
+2. Once installed, you can access Boogie from the VS Code sidebar
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Usage
 
-## Requirements
+### Creating a Board
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+1. Click the "Create New Board" button
+2. Enter a title and optional description
+3. Click "Create"
 
-## Extension Settings
+### Managing Cards
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+- Click the "+" button on a column to add a new card
+- Click on a card to edit its details
+- Drag and drop cards between columns
+- Use the "↑" and "↓" buttons to collapse/expand columns
 
-For example:
+### Viewing Boards
 
-This extension contributes the following settings:
+- View boards in the sidebar for quick access
+- Open boards in a dedicated editor tab for a larger view by clicking the "Open in editor" button
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Development
 
-## Known Issues
+This extension is built using:
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- TypeScript
+- Svelte
+- VS Code Webview API
 
-## Release Notes
+### Building the Extension
 
-Users appreciate release notes as you update your extension.
+```bash
+# Install dependencies
+npm install
 
-### 1.0.0
+# Build the extension
+npm run build
 
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+# Package the extension
+vsce package
+```

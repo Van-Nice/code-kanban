@@ -15,10 +15,10 @@
     updatedAt: string;
   }
 
-  let boards: Board[] = [];
-  let newBoardTitle = '';
-  let newBoardDescription = '';
-  let isCreatingBoard = false;
+  let boards = $state<Board[]>([]);
+  let newBoardTitle = $state('');
+  let newBoardDescription = $state('');
+  let isCreatingBoard = $state(false);
   let messageHandler: (message: any) => void;
   let webviewContext: string;
 
@@ -83,7 +83,7 @@
     });
   }
 
-  function deleteBoard(boardId: string, event: MouseEvent) {
+  function deleteBoard(boardId: string, event: MouseEvent | KeyboardEvent) {
     event.stopPropagation();
     
     // Send message to extension
@@ -93,7 +93,7 @@
     });
   }
 
-  function openBoardInEditor(boardId: string, event: MouseEvent) {
+  function openBoardInEditor(boardId: string, event: MouseEvent | KeyboardEvent) {
     event.stopPropagation();
     
     // Send message to extension
@@ -108,12 +108,12 @@
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-xl font-medium text-[var(--vscode-foreground)]">Kanban Boards</h1>
     <button
-      on:click={() => isCreatingBoard = true}
+      onclick={() => isCreatingBoard = true}
       class="px-3 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none"
     >
       Create New Board
     </button>
-  </div>
+  </div>  
 
   {#if isCreatingBoard}
     <div class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-md p-4 mb-4">
@@ -140,13 +140,13 @@
       </div>
       <div class="flex justify-end gap-2">
         <button
-          on:click={() => isCreatingBoard = false}
+          onclick={() => isCreatingBoard = false}
           class="px-2 py-1 text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
         >
           Cancel
         </button>
         <button
-          on:click={createBoard}
+          onclick={createBoard}
           class="px-2 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none"
         >
           Create
@@ -163,31 +163,62 @@
   {:else}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {#each boards as board (board.id)}
-        <div 
-          class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-md p-4 cursor-pointer hover:border-[var(--vscode-focus-border)] transition-colors"
-          on:click={() => onBoardSelect(board.id)}
+        <button 
+          class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-md p-4 cursor-pointer hover:border-[var(--vscode-focus-border)] transition-colors text-left"
+          onclick={() => onBoardSelect(board.id)}
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onBoardSelect(board.id); }}
+          aria-label={`Select board ${board.title}`}
         >
           <div class="flex justify-between items-start">
             <h3 class="font-medium text-[var(--vscode-foreground)]">{board.title}</h3>
             <div class="flex gap-1">
-              <button
-                on:click={(e: MouseEvent) => openBoardInEditor(board.id, e)}
-                class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)]"
-                title="Open in editor"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                  <polyline points="15 3 21 3 21 9"></polyline>
-                  <line x1="10" y1="14" x2="21" y2="3"></line>
-                </svg>
-              </button>
-              <button
-                on:click={(e: MouseEvent) => deleteBoard(board.id, e)}
-                class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-errorForeground)]"
-                title="Delete board"
-              >
-                ×
-              </button>
+            <!-- Open in editor "button" -->
+            <div
+              tabindex="0"
+              role="button"
+              onclick={(e: MouseEvent) => {
+                e.stopPropagation();
+                openBoardInEditor(board.id, e);
+              }}
+              onkeydown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openBoardInEditor(board.id, e);
+                }
+              }}
+              class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] cursor-pointer"
+              title="Open in editor"
+              aria-label="Open in editor"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </div>
+            <!-- End "button"  -->
+            <!-- Delete "button" -->
+            <div
+              tabindex="0"
+              role="button"
+              onclick={(e: MouseEvent) => {
+                e.stopPropagation();
+                deleteBoard(board.id, e);
+              }}
+              onkeydown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault(); 
+                  e.stopPropagation();
+                  deleteBoard(board.id, e);
+                }
+              }}
+              class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-errorForeground)] cursor-pointer"
+              title="Delete board"
+              aria-label="Delete board"
+            >
+              ×
+            </div>
             </div>
           </div>
           {#if board.description}
@@ -196,7 +227,7 @@
           <div class="text-xs text-[var(--vscode-descriptionForeground)] mt-2">
             Updated: {new Date(board.updatedAt).toLocaleDateString()}
           </div>
-        </div>
+        </button>
       {/each}
     </div>
   {/if}

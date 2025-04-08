@@ -4,6 +4,10 @@
   "description": "Kanban board and to do list fully integrated into vscode",
   "version": "0.0.1",
   "publisher": "wilsonvannice",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/van-nice/boogie.git"
+  },
   "engines": {
     "vscode": "^1.99.0"
   },
