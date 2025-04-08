@@ -18,6 +18,7 @@
   let editedAssignee = assignee;
   let newLabel = '';
   let webviewContext = getWebviewContext();
+  let isDragging = false;
 
   function startEditing() {
     isEditing = true;
@@ -78,9 +79,30 @@
   function removeLabel(label: string) {
     editedLabels = editedLabels.filter(l => l !== label);
   }
+
+  function handleDragStart(event: DragEvent) {
+    isDragging = true;
+    if (event.dataTransfer) {
+      // Set a custom drag image if needed
+      // const dragImage = document.createElement('div');
+      // dragImage.textContent = title;
+      // dragImage.style.opacity = '0.8';
+      // document.body.appendChild(dragImage);
+      // event.dataTransfer.setDragImage(dragImage, 0, 0);
+      // setTimeout(() => document.body.removeChild(dragImage), 0);
+    }
+  }
+
+  function handleDragEnd() {
+    isDragging = false;
+  }
 </script>
 
-<div class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded shadow-sm hover:border-[var(--vscode-focusBorder)] transition-colors">
+<div 
+  class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded shadow-sm hover:border-[var(--vscode-focusBorder)] transition-all duration-200 ease-in-out {isDragging ? 'opacity-50 border-[var(--vscode-focusBorder)]' : ''}"
+  on:dragstart={handleDragStart}
+  on:dragend={handleDragEnd}
+>
   {#if isEditing}
     <div class="p-3 space-y-3">
       <div>
@@ -196,3 +218,9 @@
     </div>
   {/if}
 </div>
+
+<style>
+  div {
+    transition: all 0.2s ease;
+  }
+</style>

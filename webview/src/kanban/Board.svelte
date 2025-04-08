@@ -148,14 +148,9 @@
             title={column.title}
             cards={column.cards}
             boardId={boardId}
+            onAddCard={addCard}
             on:cardMove={handleCardMove}
           />
-          <button
-            on:click={() => addCard(column.id)}
-            class="w-full mt-2 px-3 py-1.5 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
-          >
-            + Add Card
-          </button>
         </div>
       {/each}
     </div>
@@ -169,14 +164,9 @@
             title={column.title}
             cards={column.cards}
             boardId={boardId}
+            onAddCard={addCard}
             on:cardMove={handleCardMove}
           />
-          <button
-            on:click={() => addCard(column.id)}
-            class="w-full mt-2 px-3 py-1.5 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none"
-          >
-            + Add Card
-          </button>
         </div>
       {/each}
     </div>
