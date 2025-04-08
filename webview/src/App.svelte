@@ -3,106 +3,180 @@
 	import BoardList from './kanban/BoardList.svelte';
 	import { onMount } from 'svelte';
 	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from './utils/vscodeMessaging';
-
+  
 	let currentBoardId: string | null = null;
 	let messageHandler: (message: any) => void;
 	let webviewContext: string;
-
+	let theme = 'dark'; // Default theme
+  
 	onMount(() => {
-		// Initialize VSCode API
-		initializeVSCodeApi();
-		
-		// Get the webview context
-		webviewContext = getWebviewContext();
-		
-		// Set up message listener
-		messageHandler = (message) => {
-			handleExtensionMessage(message);
-		};
-		setupMessageListener(messageHandler);
-
-		// Check if we have a board ID in the URL
-		const urlParams = new URLSearchParams(window.location.search);
-		const boardId = urlParams.get('boardId');
-		if (boardId) {
-			currentBoardId = boardId;
-		}
-		
-		// Check if we have a board ID in the window object (for editor view)
-		// @ts-ignore - window.boardId is injected by the extension
-		if (window.boardId) {
-			// @ts-ignore
-			currentBoardId = window.boardId;
-		}
-	});
-
-	function handleExtensionMessage(message: any) {
-		switch (message.command) {
-			case 'boardLoaded':
-				if (message.data.success) {
-					// Board data loaded successfully
-				}
-				break;
-			default:
-				console.log('Unknown message:', message);
-		}
-	}
-
-	function handleBoardSelect(boardId: string) {
+	  // Initialize VSCode API
+	  initializeVSCodeApi();
+	  
+	  // Get the webview context
+	  webviewContext = getWebviewContext();
+	  
+	  // Set up message listener
+	  messageHandler = (message) => {
+		handleExtensionMessage(message);
+	  };
+	  setupMessageListener(messageHandler);
+  
+	  // Check if we have a board ID in the URL
+	  const urlParams = new URLSearchParams(window.location.search);
+	  const boardId = urlParams.get('boardId');
+	  if (boardId) {
 		currentBoardId = boardId;
-		// Update URL without reloading the page
-		const url = new URL(window.location.href);
-		url.searchParams.set('boardId', boardId);
-		window.history.pushState({}, '', url);
+	  }
+	  
+	  // Check if we have a board ID in the window object (for editor view)
+	  // @ts-ignore - window.boardId is injected by the extension
+	  if (window.boardId) {
+		// @ts-ignore
+		currentBoardId = window.boardId;
+	  }
+	  
+	  // Detect theme from VSCode
+	  const body = document.body;
+	  if (body.classList.contains('vscode-light')) {
+		theme = 'light';
+	  } else if (body.classList.contains('vscode-high-contrast')) {
+		theme = 'high-contrast';
+	  }
+	  
+	  // Listen for theme changes
+	  const observer = new MutationObserver((mutations) => {
+		mutations.forEach((mutation) => {
+		  if (mutation.attributeName === 'class') {
+			const body = document.body;
+			if (body.classList.contains('vscode-light')) {
+			  theme = 'light';
+			} else if (body.classList.contains('vscode-high-contrast')) {
+			  theme = 'high-contrast';
+			} else {
+			  theme = 'dark';
+			}
+		  }
+		});
+	  });
+	  
+	  observer.observe(document.body, { attributes: true });
+	  
+	  return () => {
+		observer.disconnect();
+	  };
+	});
+  
+	function handleExtensionMessage(message: any) {
+	  switch (message.command) {
+		case 'boardLoaded':
+		  if (message.data.success) {
+			// Board data loaded successfully
+		  }
+		  break;
+		case 'themeChanged':
+		  theme = message.data.theme;
+		  break;
+		default:
+		  console.log('Unknown message:', message);
+	  }
 	}
-
+  
+	function handleBoardSelect(boardId: string) {
+	  currentBoardId = boardId;
+	  // Update URL without reloading the page
+	  const url = new URL(window.location.href);
+	  url.searchParams.set('boardId', boardId);
+	  window.history.pushState({}, '', url);
+	}
+  
 	function handleBackToBoards() {
-		currentBoardId = null;
-		// Update URL without reloading the page
-		const url = new URL(window.location.href);
-		url.searchParams.delete('boardId');
-		window.history.pushState({}, '', url);
+	  currentBoardId = null;
+	  // Update URL without reloading the page
+	  const url = new URL(window.location.href);
+	  url.searchParams.delete('boardId');
+	  window.history.pushState({}, '', url);
 	}
-</script>
-
-<main class="min-h-screen bg-[var(--vscode-editor-background)]">
+  </script>
+  
+  <main class="min-h-screen bg-[var(--vscode-editor-background)]" data-theme={theme}>
 	{#if currentBoardId}
-		<div class="p-4">
-			<div class="mb-4 flex items-center">
-				<button
-					on:click={handleBackToBoards}
-					class="px-2 py-1 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBackground)] bg-[var(--vscode-button-secondaryBackground)] rounded hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none inline-flex items-center gap-1"
-				>
-					<span>←</span>
-					<span>Back to Boards</span>
-				</button>
-			</div>
-			<Board boardId={currentBoardId} />
+	  <div class="p-4">
+		<div class="mb-4 flex items-center">
+		  <button
+			on:click={handleBackToBoards}
+			class="px-2 py-1 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] inline-flex items-center gap-1"
+		  >
+			<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			  <line x1="19" y1="12" x2="5" y2="12"></line>
+			  <polyline points="12 19 5 12 12 5"></polyline>
+			</svg>
+			<span>Back to Boards</span>
+		  </button>
 		</div>
+		<Board boardId={currentBoardId} />
+	  </div>
 	{:else}
-		<BoardList onBoardSelect={handleBoardSelect} />
+	  <BoardList onBoardSelect={handleBoardSelect} />
 	{/if}
-</main>
-
-<style>
+  </main>
+  
+  <style>
 	:global(body) {
-		margin: 0;
-		font-family: var(--vscode-font-family);
-		color: var(--vscode-foreground);
-		background-color: var(--vscode-editor-background);
+	  margin: 0;
+	  font-family: var(--vscode-font-family);
+	  color: var(--vscode-foreground);
+	  background-color: var(--vscode-editor-background);
+	  font-size: var(--vscode-font-size);
+	  line-height: 1.5;
 	}
-
+  
 	:global(button) {
-		font-family: inherit;
+	  font-family: inherit;
+	  font-size: inherit;
 	}
-
+  
 	:global(input), :global(select), :global(textarea) {
-		font-family: inherit;
+	  font-family: inherit;
+	  font-size: inherit;
 	}
 	
 	/* Adjust styles based on webview context */
 	:global(.sidebar-context) {
-		max-width: 100%;
-		overflow-x: hidden;
+	  max-width: 100%;
+	  overflow-x: hidden;
 	}
-</style>
+	
+	/* Custom scrollbar styling to match VSCode */
+	:global(::-webkit-scrollbar) {
+	  width: 10px;
+	  height: 10px;
+	}
+	
+	:global(::-webkit-scrollbar-track) {
+	  background: var(--vscode-scrollbarSlider-background);
+	  border-radius: 3px;
+	}
+	
+	:global(::-webkit-scrollbar-thumb) {
+	  background: var(--vscode-scrollbarSlider-hoverBackground);
+	  border-radius: 3px;
+	}
+	
+	:global(::-webkit-scrollbar-thumb:hover) {
+	  background: var(--vscode-scrollbarSlider-activeBackground);
+	}
+	
+	/* Focus styles */
+	:global(*:focus-visible) {
+	  outline: 2px solid var(--vscode-focusBorder);
+	  outline-offset: -1px;
+	}
+	
+	/* Transitions */
+	:global(.transition-all) {
+	  transition-property: all;
+	  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	  transition-duration: 150ms;
+	}
+  </style>
