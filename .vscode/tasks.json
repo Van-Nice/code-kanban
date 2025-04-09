@@ -6,7 +6,7 @@
     {
       "type": "npm",
       "script": "watch",
-      "problemMatcher": "$ts-webpack-watch",
+      "problemMatcher": "$tsc-watch",
       "isBackground": true,
       "presentation": {
         "reveal": "never",
@@ -40,6 +40,12 @@
       "problemMatcher": [],
       "label": "npm: compile-all",
       "detail": "npm run build --prefix webview && npm run compile"
+    },
+    {
+      "label": "build-webview",
+      "type": "shell",
+      "command": "cd ${workspaceFolder}/webview && npm run build",
+      "problemMatcher": []
     }
   ]
 }

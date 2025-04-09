@@ -3,6 +3,7 @@
 'use strict';
 
 const path = require('path');
+const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -40,6 +41,14 @@ const extensionConfig = {
       }
     ]
   },
+  plugins: [
+    // @ts-ignore
+    new BundleAnalyzerPlugin({
+      analyzerMode: process.env.ANALYZE ? 'server' : 'disabled',
+      generateStatsFile: true,
+      statsFilename: path.join(__dirname, 'dist', 'bundle-stats.json'),
+    })
+  ],
   devtool: 'nosources-source-map',
   infrastructureLogging: {
     level: "log", // enables logging required for problem matchers

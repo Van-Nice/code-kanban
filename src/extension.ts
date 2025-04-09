@@ -44,6 +44,20 @@ export function activate(context: vscode.ExtensionContext) {
         // Set up message listener
         webviewView.webview.onDidReceiveMessage(
           async (message) => {
+            console.log(`Sidebar received message: ${message.command}`);
+            if (message.command === "updateCard") {
+              console.log(
+                "Extension received updateCard message:",
+                JSON.stringify(message.data, null, 2)
+              );
+
+              // Extra logging for updateCard messages
+              console.log("CRITICAL UPDATE MESSAGE RECEIVED - Details:");
+              console.log(`Card ID: ${message.data?.card?.id}`);
+              console.log(`Card Title: ${message.data?.card?.title}`);
+              console.log(`Column ID: ${message.data?.columnId}`);
+              console.log(`Board ID: ${message.data?.boardId}`);
+            }
             await messageHandler.handleMessage(message);
           },
           undefined,
@@ -105,6 +119,13 @@ export function activate(context: vscode.ExtensionContext) {
       // Set up message listener
       panel.webview.onDidReceiveMessage(
         async (message) => {
+          console.log(`Editor received message: ${message.command}`);
+          if (message.command === "updateCard") {
+            console.log(
+              "Extension received updateCard message:",
+              JSON.stringify(message.data, null, 2)
+            );
+          }
           await messageHandler.handleMessage(message);
         },
         undefined,
@@ -173,6 +194,13 @@ export function activate(context: vscode.ExtensionContext) {
       // Set up message listener
       panel.webview.onDidReceiveMessage(
         async (message) => {
+          console.log(`Board editor received message: ${message.command}`);
+          if (message.command === "updateCard") {
+            console.log(
+              "Extension received updateCard message:",
+              JSON.stringify(message.data, null, 2)
+            );
+          }
           await messageHandler.handleMessage(message);
         },
         undefined,

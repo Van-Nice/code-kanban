@@ -58,7 +58,7 @@ export class MessageHandler {
   }
 
   public async handleMessage(message: WebviewMessage): Promise<void> {
-    console.log("Received message from webview:", message);
+    console.log("Received message from webview:", JSON.stringify(message));
     console.log("Webview context:", this.webviewContext);
 
     switch (message.command) {
@@ -81,6 +81,7 @@ export class MessageHandler {
             data: {
               success: true,
               columns: board.columns,
+              title: board.title,
               context: this.webviewContext,
             },
           });
@@ -187,54 +188,154 @@ export class MessageHandler {
 
       case "updateCard":
         // Update a card in a board's column and save to storage
-        const boardsForUpdate = this.getBoards();
-        const boardToUpdate = boardsForUpdate.find(
-          (b) => b.id === message.data.boardId
-        );
-        if (boardToUpdate) {
-          const columnToUpdate = boardToUpdate.columns.find(
-            (c) => c.id === message.data.columnId
+        try {
+          console.log(
+            "Processing updateCard message with data:",
+            JSON.stringify(message.data, null, 2)
           );
-          if (columnToUpdate) {
-            const cardIndex = columnToUpdate.cards.findIndex(
-              (c) => c.id === message.data.card.id
-            );
-            if (cardIndex !== -1) {
-              columnToUpdate.cards[cardIndex] = message.data.card;
-              boardToUpdate.updatedAt = new Date().toISOString();
-              await this.saveBoards(boardsForUpdate);
-              this.sendMessage({
-                command: "cardUpdated",
-                data: {
-                  success: true,
-                  card: message.data.card,
-                  columnId: message.data.columnId,
-                },
-              });
-            } else {
-              this.sendMessage({
-                command: "cardUpdated",
-                data: {
-                  success: false,
-                  error: "Card not found",
-                },
-              });
-            }
-          } else {
+
+          if (!message.data) {
+            console.error("updateCard: message.data is missing");
             this.sendMessage({
               command: "cardUpdated",
               data: {
                 success: false,
-                error: "Column not found",
+                error: "Missing message data",
+              },
+            });
+            return;
+          }
+
+          if (!message.data.boardId) {
+            console.error("updateCard: boardId is missing");
+            this.sendMessage({
+              command: "cardUpdated",
+              data: {
+                success: false,
+                error: "Missing boardId",
+              },
+            });
+            return;
+          }
+
+          if (!message.data.columnId) {
+            console.error("updateCard: columnId is missing");
+            this.sendMessage({
+              command: "cardUpdated",
+              data: {
+                success: false,
+                error: "Missing columnId",
+              },
+            });
+            return;
+          }
+
+          if (!message.data.card || !message.data.card.id) {
+            console.error("updateCard: card or card.id is missing");
+            this.sendMessage({
+              command: "cardUpdated",
+              data: {
+                success: false,
+                error: "Missing card data",
+              },
+            });
+            return;
+          }
+
+          const boardsForUpdate = this.getBoards();
+          console.log("Boards retrieved:", boardsForUpdate.length);
+
+          const boardToUpdate = boardsForUpdate.find(
+            (b) => b.id === message.data.boardId
+          );
+
+          if (boardToUpdate) {
+            console.log("Found board to update:", boardToUpdate.title);
+            const columnToUpdate = boardToUpdate.columns.find(
+              (c) => c.id === message.data.columnId
+            );
+            if (columnToUpdate) {
+              console.log("Found column to update:", columnToUpdate.title);
+              console.log("Column has cards:", columnToUpdate.cards.length);
+
+              const cardIndex = columnToUpdate.cards.findIndex(
+                (c) => c.id === message.data.card.id
+              );
+              console.log(
+                "Card index:",
+                cardIndex,
+                "Card ID:",
+                message.data.card.id
+              );
+              if (cardIndex !== -1) {
+                columnToUpdate.cards[cardIndex] = message.data.card;
+                boardToUpdate.updatedAt = new Date().toISOString();
+                await this.saveBoards(boardsForUpdate);
+                console.log("Card updated successfully, sending response");
+                console.log(
+                  "CARD PERSISTENCE SUCCESS: Card saved to storage with the following details:"
+                );
+                console.log(`- Card ID: ${message.data.card.id}`);
+                console.log(`- New Title: ${message.data.card.title}`);
+                console.log(`- In Column: ${message.data.columnId}`);
+                console.log(`- Board ID: ${message.data.boardId}`);
+                this.sendMessage({
+                  command: "cardUpdated",
+                  data: {
+                    success: true,
+                    card: message.data.card,
+                    columnId: message.data.columnId,
+                  },
+                });
+              } else {
+                console.error("Card not found:", message.data.card.id);
+                console.log(
+                  "Available card IDs in column:",
+                  columnToUpdate.cards.map((c) => c.id)
+                );
+                this.sendMessage({
+                  command: "cardUpdated",
+                  data: {
+                    success: false,
+                    error: "Card not found",
+                  },
+                });
+              }
+            } else {
+              console.error("Column not found:", message.data.columnId);
+              console.log(
+                "Available columns:",
+                boardToUpdate.columns.map((c) => ({ id: c.id, title: c.title }))
+              );
+              this.sendMessage({
+                command: "cardUpdated",
+                data: {
+                  success: false,
+                  error: "Column not found",
+                },
+              });
+            }
+          } else {
+            console.error("Board not found:", message.data.boardId);
+            console.log(
+              "Available board IDs:",
+              boardsForUpdate.map((b) => b.id)
+            );
+            this.sendMessage({
+              command: "cardUpdated",
+              data: {
+                success: false,
+                error: "Board not found",
               },
             });
           }
-        } else {
+        } catch (error) {
+          console.error("Exception in updateCard handler:", error);
           this.sendMessage({
             command: "cardUpdated",
             data: {
               success: false,
-              error: "Board not found",
+              error: error instanceof Error ? error.message : String(error),
             },
           });
         }

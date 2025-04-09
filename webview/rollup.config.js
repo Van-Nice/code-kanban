@@ -15,12 +15,16 @@ function serve() {
   let server;
 
   function toExit() {
-    if (server) server.kill(0);
+    if (server) {
+      server.kill(0);
+    }
   }
 
   return {
     writeBundle() {
-      if (server) return;
+      if (server) {
+        return;
+      }
       server = spawn("npm", ["run", "start", "--", "--dev"], {
         stdio: ["ignore", "inherit", "inherit"],
         shell: true,
@@ -35,18 +39,19 @@ function serve() {
 // Custom logging plugin
 const logPlugin = {
   name: "log-plugin",
-  generateBundle(options, bundle) {
-    console.log("Generated bundle files:");
-    for (const [fileName, asset] of Object.entries(bundle)) {
-      console.log(`- ${fileName}: ${asset.type === "chunk" ? "JS" : "Asset"}`);
-      if (fileName === "app.css" && asset.source) {
-        console.log(
-          "app.css content preview:",
-          asset.source.slice(0, 100) + "..."
-        );
-      }
-    }
-  },
+  // Enable for testing
+  // generateBundle(options, bundle) {
+  //   console.log("Generated bundle files:");
+  //   for (const [fileName, asset] of Object.entries(bundle)) {
+  //     console.log(`- ${fileName}: ${asset.type === "chunk" ? "JS" : "Asset"}`);
+  //     if (fileName === "app.css" && asset.source) {
+  //       console.log(
+  //         "app.css content preview:",
+  //         asset.source.slice(0, 100) + "..."
+  //       );
+  //     }
+  //   }
+  // },
 };
 
 export default {
@@ -83,13 +88,14 @@ export default {
         {
           // Custom PostCSS plugin for logging
           postcssPlugin: "logger",
-          Once(root) {
-            console.log("PostCSS processing started...");
-            console.log("CSS root contains", root.nodes.length, "nodes");
-          },
-          Declaration(decl) {
-            console.log(`Processing declaration: ${decl.prop}: ${decl.value}`);
-          },
+          // Enable for testing
+          // Once(root) {
+          //   console.log("PostCSS processing started...");
+          //   console.log("CSS root contains", root.nodes.length, "nodes");
+          // },
+          // Declaration(decl) {
+          //   console.log(`Processing declaration: ${decl.prop}: ${decl.value}`);
+          // },
         },
       ],
     }),

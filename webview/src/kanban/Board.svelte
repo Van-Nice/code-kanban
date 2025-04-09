@@ -35,17 +35,25 @@
     // Get the webview context
     webviewContext = getWebviewContext();
     
+    console.log(`Board mounted with boardId: ${boardId}, webviewContext: ${webviewContext}`);
+    
     // Set up message listener
     messageHandler = (message) => {
       handleExtensionMessage(message);
     };
     setupMessageListener(messageHandler);
 
-    // Request board data from extension
-    sendMessage({
-      command: 'getBoard',
-      data: { boardId }
-    });
+    // Request board data from extension with retries
+    requestBoardData();
+    
+    // Set up global console error handler to catch any issues
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+      originalConsoleError.apply(console, args);
+      if (args[0] && typeof args[0] === 'string' && args[0].includes('Svelte')) {
+        console.log('Board component error detected:', ...args);
+      }
+    };
   });
 
   onDestroy(() => {
@@ -56,10 +64,22 @@
   });
 
   function handleExtensionMessage(message: any) {
+    console.log('Board received message:', message);
+    
     switch (message.command) {
       case 'boardLoaded':
         if (message.data.success) {
+          console.log('Board loaded:', message.data);
           columns = message.data.columns;
+          
+          // Log the loaded columns to verify card states
+          console.log('Loaded columns with cards:', columns.map(col => ({
+            id: col.id,
+            title: col.title,
+            cardCount: col.cards.length,
+            cards: col.cards.map(card => ({ id: card.id, title: card.title }))
+          })));
+          
           boardTitle = message.data.title || 'Untitled Board';
           if (message.data.context) {
             webviewContext = message.data.context;
@@ -70,19 +90,56 @@
       case 'cardAdded':
         if (message.data.success) {
           const { card, columnId } = message.data;
-          updateColumnCards(columnId, [...getColumnCards(columnId), card]);
+          console.log('Card added:', card);
+          
+          // Check if this is part of our update workaround
+          const existingCardIndex = getColumnCards(columnId).findIndex(c => c.id === card.id);
+          if (existingCardIndex !== -1) {
+            console.log('This appears to be a card update via add/delete workaround');
+            updateColumnCards(columnId, getColumnCards(columnId).map(c => 
+              c.id === card.id ? card : c
+            ));
+          } else {
+            // Normal add
+            updateColumnCards(columnId, [...getColumnCards(columnId), card]);
+          }
         }
         break;
       case 'cardUpdated':
+        console.log('Processing cardUpdated message:', message.data);
         if (message.data.success) {
           const { card, columnId } = message.data;
+          console.log('Updating column cards with updated card:', card);
+          console.log('Current columns state:', columns);
           updateColumnCards(columnId, getColumnCards(columnId).map(c => c.id === card.id ? card : c));
+          console.log('Updated columns state:', columns);
+        } else {
+          console.error('Card update failed:', message.data.error);
         }
         break;
       case 'cardDeleted':
         if (message.data.success) {
           const { cardId, columnId } = message.data;
-          updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
+          console.log('Card deleted:', cardId);
+          
+          // For our workaround, we'll avoid immediately removing the card
+          // to prevent UI flicker, since we'll be adding it back shortly
+          // We'll store a reference to the card being "deleted" for the workaround
+          const deletedCard = getColumnCards(columnId).find(c => c.id === cardId);
+          if (deletedCard) {
+            console.log('Stored reference to deleted card for potential workaround:', deletedCard);
+            // Set a short timeout to delete the card, giving time for the add to come through
+            setTimeout(() => {
+              // Only remove if it wasn't already re-added (part of workaround)
+              if (getColumnCards(columnId).findIndex(c => c.id === cardId) === -1) {
+                console.log('Card was not re-added, removing from UI');
+                updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
+              }
+            }, 200);
+          } else {
+            // Immediate delete if card not found (shouldn't happen)
+            updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
+          }
         }
         break;
       case 'cardMoved':
@@ -127,8 +184,45 @@
     });
   }
 
-  function handleCardMove(event: CustomEvent) {
-    const { cardId, fromColumnId, toColumnId } = event.detail;
+  // Add this new function for optimistic card updates
+  function handleCardUpdate(data: { card: Card, columnId: string }) {
+    const { card, columnId } = data;
+    
+    // Optimistically update UI state
+    console.log('Optimistically updating card:', card.id, 'in column:', columnId);
+    updateColumnCards(columnId, getColumnCards(columnId).map(c => 
+      c.id === card.id ? card : c
+    ));
+    
+    // Send message to extension
+    sendMessage({
+      command: 'updateCard',
+      data: { 
+        card, 
+        columnId,
+        boardId
+      }
+    });
+  }
+
+  function handleCardMove(data: { cardId: string, fromColumnId: string, toColumnId: string }) {
+    const { cardId, fromColumnId, toColumnId } = data;
+
+    // Optimistically update UI state
+    const fromColumn = columns.find(col => col.id === fromColumnId);
+    const toColumn = columns.find(col => col.id === toColumnId);
+    
+    if (fromColumn && toColumn) {
+      const card = fromColumn.cards.find(c => c.id === cardId);
+      if (card) {
+        // Remove card from source column
+        updateColumnCards(fromColumnId, fromColumn.cards.filter(c => c.id !== cardId));
+        // Add card to target column
+        updateColumnCards(toColumnId, [...toColumn.cards, card]);
+        
+        console.log(`Optimistically moved card ${cardId} from column ${fromColumnId} to ${toColumnId}`);
+      }
+    }
 
     // Send message to extension
     sendMessage({
@@ -152,6 +246,22 @@
     
     // Optimistically update UI
     columns = [...columns, newColumn];
+  }
+
+  // Function to request board data with retries
+  function requestBoardData(retryCount = 0) {
+    console.log(`Requesting board data (attempt ${retryCount + 1})`);
+    sendMessage({
+      command: 'getBoard',
+      data: { boardId }
+    });
+    
+    // Retry a few times to ensure we get the latest data
+    if (retryCount < 2) {
+      setTimeout(() => {
+        requestBoardData(retryCount + 1);
+      }, 1000 * (retryCount + 1)); // Wait longer for each retry
+    }
   }
 </script>
 
@@ -190,7 +300,8 @@
               cards={column.cards}
               boardId={boardId}
               onAddCard={addCard}
-              on:cardMove={handleCardMove}
+              onCardMove={handleCardMove}
+              on:cardUpdate={(event) => handleCardUpdate(event.detail)}
             />
           </div>
         {/each}
@@ -206,7 +317,8 @@
               cards={column.cards}
               boardId={boardId}
               onAddCard={addCard}
-              on:cardMove={handleCardMove}
+              onCardMove={handleCardMove}            
+              on:cardUpdate={(event) => handleCardUpdate(event.detail)}
             />
           </div>
         {/each}

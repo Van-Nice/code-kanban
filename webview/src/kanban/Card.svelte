@@ -2,10 +2,12 @@
   import { v4 as uuidv4 } from 'uuid';
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
 
-  const { id = uuidv4(), title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
-    id?: string;
+  const dispatch = createEventDispatcher();
+
+  const { id, title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
+    id: string;
     title: string;
     description?: string;
     labels?: string[];
@@ -14,7 +16,23 @@
     boardId: string;
   }>();
 
-  // Add $state to all reactive variables
+  // Debug log props
+  console.log('Card component initialized with props:', { id, title, description, labels, assignee, columnId, boardId });
+  
+  // Add to window for debugging
+  try {
+    // @ts-ignore
+    if (!window._debugData) {
+      // @ts-ignore
+      window._debugData = {};
+    }
+    // @ts-ignore
+    window._debugData.cardProps = { id, title, description, labels, assignee, columnId, boardId };
+    console.log('Card props added to window._debugData for console debugging');
+  } catch (e) {
+    console.error('Failed to add debug data to window:', e);
+  }
+
   let isEditing = $state(false);
   let editedTitle = $state(title);
   let editedDescription = $state(description);
@@ -44,27 +62,88 @@
   });
 
   function saveChanges() {
-    if (!editedTitle.trim()) return;
+    console.log('saveChanges function called');
+    
+    if (!editedTitle.trim()) {
+      console.log('Cannot save: title is empty');
+      return;
+    }
 
+    // Create a copy of the card with updated values
     const updatedCard = {
-      id,
+      id, // Keep the same ID
       title: editedTitle,
       description: editedDescription,
       labels: editedLabels,
       assignee: editedAssignee
     };
-
-    // Send message to extension
-    sendMessage({
-      command: 'updateCard',
-      data: { 
-        card: updatedCard, 
+    
+    try {
+      // Store card data in a global variable to ensure it persists
+      // @ts-ignore
+      window._pendingCardUpdate = {
+        card: updatedCard,
         columnId,
         boardId
-      }
-    });
-
-    isEditing = false;
+      };
+      
+      // WORKAROUND: Use delete + add instead of update
+      // First delete the original card
+      console.log('WORKAROUND: Deleting card to simulate update', id);
+      sendMessage({
+        command: 'deleteCard',
+        data: { 
+          cardId: id, 
+          columnId,
+          boardId
+        }
+      });
+      
+      // Then add a new card with the same ID but updated values
+      // Use a longer timeout to ensure delete completes first
+      const addCardFunction = () => {
+        // @ts-ignore
+        const pendingUpdate = window._pendingCardUpdate;
+        if (!pendingUpdate) {
+          console.error('No pending update found!');
+          return;
+        }
+        
+        console.log('WORKAROUND: Adding updated card', pendingUpdate.card.id);
+        sendMessage({
+          command: 'addCard',
+          data: pendingUpdate
+        });
+        
+        // Call this function again if the message might have failed
+        // @ts-ignore
+        window._addCardRetryCount = (window._addCardRetryCount || 0) + 1;
+        // @ts-ignore
+        if (window._addCardRetryCount < 3) {
+          setTimeout(addCardFunction, 500);
+        }
+        
+        // Update UI optimistically
+        try {
+          dispatch('cardUpdate', { 
+            card: pendingUpdate.card, 
+            columnId: pendingUpdate.columnId
+          });
+        } catch (e) {
+          // Ignore dispatch errors
+        }
+      };
+      
+      // Set multiple timeouts to ensure the message gets through
+      setTimeout(addCardFunction, 300);
+      setTimeout(addCardFunction, 800);
+      setTimeout(addCardFunction, 1500);
+      
+      isEditing = false;
+    } catch (error) {
+      console.error('Error updating card:', error);
+      alert('Failed to save card changes. Please try again.');
+    }
   }
 
   function cancelEditing() {
@@ -130,7 +209,15 @@
   }}
 >
   {#if isEditing}
-    <div class="p-3 space-y-3">
+    <form 
+      onsubmit={(e: Event) => {
+        e.preventDefault();
+        console.log('Form submitted through onsubmit handler');
+        saveChanges();
+        return false;
+      }}
+      class="p-3 space-y-3"
+    >
       <div>
         <label for="card-title" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Title</label>
         <!-- svelte-ignore a11y_autofocus -->
@@ -141,6 +228,9 @@
           bind:value={editedTitle}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           autofocus
+          onkeydown={(e: KeyboardEvent) => {
+            e.stopPropagation();
+          }}
         />
       </div>
       <div>
@@ -150,6 +240,9 @@
           bind:value={editedDescription}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           rows="2"
+          onkeydown={(e: KeyboardEvent) => {
+            e.stopPropagation();
+          }}
         ></textarea>
       </div>
       <div>
@@ -160,6 +253,9 @@
           bind:value={editedAssignee}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           placeholder="Assign to..."
+          onkeydown={(e: KeyboardEvent) => {
+            e.stopPropagation();
+          }}
         />
       </div>
       <div>
@@ -205,7 +301,11 @@
       </div>
       <div class="flex justify-between pt-2">
         <button
-          onclick={deleteCard}
+          type="button"
+          onclick={(e: MouseEvent) => { 
+            e.stopPropagation(); 
+            deleteCard(); 
+          }}          
           class="px-2 py-1 text-sm text-[var(--vscode-errorForeground)] border border-[var(--vscode-errorForeground)] rounded-sm hover:bg-[var(--vscode-errorForeground)] hover:text-[var(--vscode-editor-background)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-errorForeground)]"
         >
           <span class="flex items-center gap-1">
@@ -221,20 +321,99 @@
         </button>
         <div class="flex gap-2">
           <button
-            onclick={cancelEditing}
+            type="button"
+            onclick={(e: MouseEvent) => {
+              e.stopPropagation();
+              cancelEditing();
+            }}
             class="px-2 py-1 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Cancel
           </button>
           <button
-            onclick={saveChanges}
+            type="button"
+            onclick={(e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Save button clicked');
+              saveChanges();
+            }}
             class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Save
           </button>
+          <button
+            type="button"
+            onclick={(e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Debug Save clicked');
+              
+              try {
+                // Create the update message directly
+                const updatedCard = {
+                  id,
+                  title: editedTitle,
+                  description: editedDescription,
+                  labels: editedLabels,
+                  assignee: editedAssignee
+                };
+                
+                // Store update in global variable
+                // @ts-ignore
+                window._pendingCardUpdate = {
+                  card: updatedCard,
+                  columnId,
+                  boardId
+                };
+                
+                // WORKAROUND: Use delete + add instead of update
+                console.log('DEBUG WORKAROUND: Deleting card to simulate update', id);
+                sendMessage({
+                  command: 'deleteCard',
+                  data: { 
+                    cardId: id, 
+                    columnId,
+                    boardId
+                  }
+                });
+                
+                // Force addCard with multiple retries
+                const addCardFunction = () => {
+                  // @ts-ignore
+                  const pendingUpdate = window._pendingCardUpdate;
+                  if (!pendingUpdate) {
+                    console.error('No pending debug update found!');
+                    return;
+                  }
+                  
+                  console.log('DEBUG WORKAROUND: Adding updated card', pendingUpdate.card.id);
+                  sendMessage({
+                    command: 'addCard',
+                    data: pendingUpdate
+                  });
+                  
+                  alert(`Debug Save: Card update message sent (try ${Date.now()})`);
+                };
+                
+                // Set multiple timeouts to ensure the message gets through
+                setTimeout(addCardFunction, 300);
+                setTimeout(addCardFunction, 1000);
+                setTimeout(addCardFunction, 2000);
+                
+                isEditing = false;
+              } catch (error) {
+                console.error('Error in Debug Save:', error);
+                alert('Error: ' + String(error));
+              }
+            }}
+            class="px-2 py-1 text-sm bg-[var(--vscode-warningBackground)] text-[var(--vscode-warningForeground)] rounded-sm hover:bg-[var(--vscode-errorBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+          >
+            Debug Save
+          </button>
         </div>
       </div>
-    </div>
+    </form>
   {:else}
     <div
       role="button"

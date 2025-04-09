@@ -3,20 +3,36 @@
   import { getWebviewContext } from '../utils/vscodeMessaging';
   import { createEventDispatcher } from 'svelte';
 
-  const { id, title, cards = [], boardId, onAddCard } = $props<{
+  const dispatch = createEventDispatcher();
+  
+  const { id, title, cards = [], boardId, onAddCard, onCardMove } = $props<{
     id: string;
     title: string;
     cards?: any[];
     boardId: string;
     onAddCard: (columnId: string) => void;
+    onCardMove: (data: { cardId: string, fromColumnId: string, toColumnId: string }) => void;
   }>();
 
-  const dispatch = createEventDispatcher();
   let webviewContext = getWebviewContext();
   let isDraggingOver = $state(false);
   let dragOverIndex = $state(-1);
   let isCollapsed = $state(false); // Track collapse state
   let isHovered = $state(false);
+  
+  // Handle card update events from Card components
+  function handleCardUpdate(event: CustomEvent) {
+    // Log the event data for debugging
+    console.log('Column received cardUpdate event:', event.detail);
+    
+    try {
+      // Simply forward the event to the Board component
+      console.log('Forwarding cardUpdate event to Board component');
+      dispatch('cardUpdate', event.detail);
+    } catch (error) {
+      console.error('Error forwarding cardUpdate event:', error);
+    }
+  }
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
@@ -74,7 +90,7 @@
         const fromColumnId = cardData.fromColumnId;
         
         if (fromColumnId !== id) {
-          dispatch('cardMove', { cardId, fromColumnId, toColumnId: id });
+          onCardMove({ cardId, fromColumnId, toColumnId: id });        
         }
       } catch (error) {
         console.error('Error parsing drag data:', error);
@@ -141,6 +157,7 @@
             {...card} 
             columnId={id}
             boardId={boardId}
+            on:cardUpdate={handleCardUpdate}
           />
         </div>
       {/each}
