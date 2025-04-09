@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { v4 as uuidv4 } from 'uuid';
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import { onMount, createEventDispatcher } from 'svelte';
-
-  const dispatch = createEventDispatcher();
+  import { onMount } from 'svelte';
+  import { log, error } from '../utils/vscodeMessaging';
 
   const { id, title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
     id: string;
@@ -15,23 +13,6 @@
     columnId: string;
     boardId: string;
   }>();
-
-  // Debug log props
-  console.log('Card component initialized with props:', { id, title, description, labels, assignee, columnId, boardId });
-  
-  // Add to window for debugging
-  try {
-    // @ts-ignore
-    if (!window._debugData) {
-      // @ts-ignore
-      window._debugData = {};
-    }
-    // @ts-ignore
-    window._debugData.cardProps = { id, title, description, labels, assignee, columnId, boardId };
-    console.log('Card props added to window._debugData for console debugging');
-  } catch (e) {
-    console.error('Failed to add debug data to window:', e);
-  }
 
   let isEditing = $state(false);
   let editedTitle = $state(title);
@@ -51,7 +32,6 @@
     editedAssignee = assignee;
   }
 
-
   onMount(() => {
     // Programmatic focus when editing starts
     $effect(() => {
@@ -62,10 +42,10 @@
   });
 
   function saveChanges() {
-    console.log('saveChanges function called');
+    log('saveChanges function called');
     
     if (!editedTitle.trim()) {
-      console.log('Cannot save: title is empty');
+      log('Cannot save: title is empty');
       return;
     }
 
@@ -79,70 +59,20 @@
     };
     
     try {
-      // Store card data in a global variable to ensure it persists
-      // @ts-ignore
-      window._pendingCardUpdate = {
-        card: updatedCard,
-        columnId,
-        boardId
-      };
-      
-      // WORKAROUND: Use delete + add instead of update
-      // First delete the original card
-      console.log('WORKAROUND: Deleting card to simulate update', id);
+      // Send direct update message
+      log('Sending card update', updatedCard);
       sendMessage({
-        command: 'deleteCard',
+        command: 'updateCard',
         data: { 
-          cardId: id, 
+          card: updatedCard, 
           columnId,
           boardId
         }
       });
       
-      // Then add a new card with the same ID but updated values
-      // Use a longer timeout to ensure delete completes first
-      const addCardFunction = () => {
-        // @ts-ignore
-        const pendingUpdate = window._pendingCardUpdate;
-        if (!pendingUpdate) {
-          console.error('No pending update found!');
-          return;
-        }
-        
-        console.log('WORKAROUND: Adding updated card', pendingUpdate.card.id);
-        sendMessage({
-          command: 'addCard',
-          data: pendingUpdate
-        });
-        
-        // Call this function again if the message might have failed
-        // @ts-ignore
-        window._addCardRetryCount = (window._addCardRetryCount || 0) + 1;
-        // @ts-ignore
-        if (window._addCardRetryCount < 3) {
-          setTimeout(addCardFunction, 500);
-        }
-        
-        // Update UI optimistically
-        try {
-          dispatch('cardUpdate', { 
-            card: pendingUpdate.card, 
-            columnId: pendingUpdate.columnId
-          });
-        } catch (e) {
-          // Ignore dispatch errors
-        }
-      };
-      
-      // Set multiple timeouts to ensure the message gets through
-      setTimeout(addCardFunction, 300);
-      setTimeout(addCardFunction, 800);
-      setTimeout(addCardFunction, 1500);
-      
       isEditing = false;
-    } catch (error) {
-      console.error('Error updating card:', error);
-      alert('Failed to save card changes. Please try again.');
+    } catch (err) {
+      error('Error updating card', err);
     }
   }
 
@@ -212,7 +142,6 @@
     <form 
       onsubmit={(e: Event) => {
         e.preventDefault();
-        console.log('Form submitted through onsubmit handler');
         saveChanges();
         return false;
       }}
@@ -224,8 +153,8 @@
         <input
           type="text"
           id="card-title"
-          bind:this={cardTitleInput}
-          bind:value={editedTitle}
+          bindthis={cardTitleInput}
+          bindvalue={editedTitle}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           autofocus
           onkeydown={(e: KeyboardEvent) => {
@@ -237,7 +166,7 @@
         <label for="card-description" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Description</label>
         <textarea
           id="card-description"
-          bind:value={editedDescription}
+          bindvalue={editedDescription}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           rows="2"
           onkeydown={(e: KeyboardEvent) => {
@@ -250,7 +179,7 @@
         <input
           type="text"
           id="card-assignee"
-          bind:value={editedAssignee}
+          bindvalue={editedAssignee}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           placeholder="Assign to..."
           onkeydown={(e: KeyboardEvent) => {
@@ -280,7 +209,7 @@
         <div class="flex gap-1">
           <input
             type="text"
-            bind:value={newLabel}
+            bindvalue={newLabel}
             id="new-label"
             class="flex-1 px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-l-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
             placeholder="Add label..."
@@ -359,48 +288,17 @@
                   assignee: editedAssignee
                 };
                 
-                // Store update in global variable
-                // @ts-ignore
-                window._pendingCardUpdate = {
-                  card: updatedCard,
-                  columnId,
-                  boardId
-                };
-                
-                // WORKAROUND: Use delete + add instead of update
-                console.log('DEBUG WORKAROUND: Deleting card to simulate update', id);
+                console.log('DEBUG: Sending card update:', updatedCard);
                 sendMessage({
-                  command: 'deleteCard',
+                  command: 'updateCard',
                   data: { 
-                    cardId: id, 
+                    card: updatedCard, 
                     columnId,
                     boardId
                   }
                 });
                 
-                // Force addCard with multiple retries
-                const addCardFunction = () => {
-                  // @ts-ignore
-                  const pendingUpdate = window._pendingCardUpdate;
-                  if (!pendingUpdate) {
-                    console.error('No pending debug update found!');
-                    return;
-                  }
-                  
-                  console.log('DEBUG WORKAROUND: Adding updated card', pendingUpdate.card.id);
-                  sendMessage({
-                    command: 'addCard',
-                    data: pendingUpdate
-                  });
-                  
-                  alert(`Debug Save: Card update message sent (try ${Date.now()})`);
-                };
-                
-                // Set multiple timeouts to ensure the message gets through
-                setTimeout(addCardFunction, 300);
-                setTimeout(addCardFunction, 1000);
-                setTimeout(addCardFunction, 2000);
-                
+                alert(`Debug Save: Card update message sent (try ${Date.now()})`);
                 isEditing = false;
               } catch (error) {
                 console.error('Error in Debug Save:', error);

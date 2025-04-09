@@ -62,6 +62,12 @@ export class MessageHandler {
     console.log("Webview context:", this.webviewContext);
 
     switch (message.command) {
+      case "log":
+        console.log(`[Webview] ${message.data.message}`, message.data.data);
+        break;
+      case "error":
+        console.error(`[Webview] ${message.data.message}`, message.data.error);
+        break;
       case "getBoards":
         // Return all boards from storage
         const boards = this.getBoards();

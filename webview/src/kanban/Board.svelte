@@ -2,19 +2,12 @@
   import Column from './Column.svelte';
   import { v4 as uuidv4 } from 'uuid';
   import { onMount, onDestroy } from 'svelte';
-  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from '../utils/vscodeMessaging';
+  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
+  import type { Card } from '../types';
 
   const { boardId } = $props<{
     boardId: string;
   }>();
-
-  interface Card {
-    id: string;
-    title: string;
-    description: string;
-    labels: string[];
-    assignee: string;
-  }
 
   interface ColumnData {
     id: string;
@@ -35,7 +28,7 @@
     // Get the webview context
     webviewContext = getWebviewContext();
     
-    console.log(`Board mounted with boardId: ${boardId}, webviewContext: ${webviewContext}`);
+    log(`Board mounted with boardId: ${boardId}, webviewContext: ${webviewContext}`);
     
     // Set up message listener
     messageHandler = (message) => {
@@ -51,7 +44,7 @@
     console.error = function(...args) {
       originalConsoleError.apply(console, args);
       if (args[0] && typeof args[0] === 'string' && args[0].includes('Svelte')) {
-        console.log('Board component error detected:', ...args);
+        error('Board component error detected', args);
       }
     };
   });
@@ -64,16 +57,16 @@
   });
 
   function handleExtensionMessage(message: any) {
-    console.log('Board received message:', message);
+    log('Board received message', message);
     
     switch (message.command) {
       case 'boardLoaded':
         if (message.data.success) {
-          console.log('Board loaded:', message.data);
+          log('Board loaded', message.data);
           columns = message.data.columns;
           
           // Log the loaded columns to verify card states
-          console.log('Loaded columns with cards:', columns.map(col => ({
+          log('Loaded columns with cards', columns.map(col => ({
             id: col.id,
             title: col.title,
             cardCount: col.cards.length,
@@ -90,56 +83,22 @@
       case 'cardAdded':
         if (message.data.success) {
           const { card, columnId } = message.data;
-          console.log('Card added:', card);
-          
-          // Check if this is part of our update workaround
-          const existingCardIndex = getColumnCards(columnId).findIndex(c => c.id === card.id);
-          if (existingCardIndex !== -1) {
-            console.log('This appears to be a card update via add/delete workaround');
-            updateColumnCards(columnId, getColumnCards(columnId).map(c => 
-              c.id === card.id ? card : c
-            ));
-          } else {
-            // Normal add
-            updateColumnCards(columnId, [...getColumnCards(columnId), card]);
-          }
+          log('Card added', card);
+          updateColumnCards(columnId, [...getColumnCards(columnId), card]);
         }
         break;
       case 'cardUpdated':
-        console.log('Processing cardUpdated message:', message.data);
         if (message.data.success) {
           const { card, columnId } = message.data;
-          console.log('Updating column cards with updated card:', card);
-          console.log('Current columns state:', columns);
+          log('Card updated', card);
           updateColumnCards(columnId, getColumnCards(columnId).map(c => c.id === card.id ? card : c));
-          console.log('Updated columns state:', columns);
-        } else {
-          console.error('Card update failed:', message.data.error);
         }
         break;
       case 'cardDeleted':
         if (message.data.success) {
           const { cardId, columnId } = message.data;
-          console.log('Card deleted:', cardId);
-          
-          // For our workaround, we'll avoid immediately removing the card
-          // to prevent UI flicker, since we'll be adding it back shortly
-          // We'll store a reference to the card being "deleted" for the workaround
-          const deletedCard = getColumnCards(columnId).find(c => c.id === cardId);
-          if (deletedCard) {
-            console.log('Stored reference to deleted card for potential workaround:', deletedCard);
-            // Set a short timeout to delete the card, giving time for the add to come through
-            setTimeout(() => {
-              // Only remove if it wasn't already re-added (part of workaround)
-              if (getColumnCards(columnId).findIndex(c => c.id === cardId) === -1) {
-                console.log('Card was not re-added, removing from UI');
-                updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
-              }
-            }, 200);
-          } else {
-            // Immediate delete if card not found (shouldn't happen)
-            updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
-          }
+          log('Card deleted', cardId);
+          updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
         }
         break;
       case 'cardMoved':
@@ -153,7 +112,7 @@
         }
         break;
       default:
-        console.log('Unknown message:', message);
+        log('Unknown message', message);
     }
   }
 
@@ -174,34 +133,18 @@
       title: 'New Card',
       description: '',
       labels: [],
-      assignee: ''
+      assignee: '',
+      columnId,
+      boardId,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     // Send message to extension
     sendMessage({
       command: 'addCard',
       data: { card: newCard, columnId, boardId }
-    });
-  }
-
-  // Add this new function for optimistic card updates
-  function handleCardUpdate(data: { card: Card, columnId: string }) {
-    const { card, columnId } = data;
-    
-    // Optimistically update UI state
-    console.log('Optimistically updating card:', card.id, 'in column:', columnId);
-    updateColumnCards(columnId, getColumnCards(columnId).map(c => 
-      c.id === card.id ? card : c
-    ));
-    
-    // Send message to extension
-    sendMessage({
-      command: 'updateCard',
-      data: { 
-        card, 
-        columnId,
-        boardId
-      }
     });
   }
 
@@ -220,7 +163,7 @@
         // Add card to target column
         updateColumnCards(toColumnId, [...toColumn.cards, card]);
         
-        console.log(`Optimistically moved card ${cardId} from column ${fromColumnId} to ${toColumnId}`);
+        log(`Optimistically moved card ${cardId} from column ${fromColumnId} to ${toColumnId}`);
       }
     }
 
@@ -263,6 +206,20 @@
       }, 1000 * (retryCount + 1)); // Wait longer for each retry
     }
   }
+
+  function handleCardUpdated(card: Card) {
+    const column = columns.find(col => col.id === card.columnId);
+    if (column) {
+      updateColumnCards(card.columnId, column.cards.map(c => c.id === card.id ? card : c));
+    }
+  }
+
+  function handleCardDeleted(cardId: string) {
+    const column = columns.find(col => col.cards.some(c => c.id === cardId));
+    if (column) {
+      updateColumnCards(column.id, column.cards.filter(c => c.id !== cardId));
+    }
+  }
 </script>
 
 <div class="h-full {webviewContext === 'sidebar' ? 'sidebar-context' : ''}">
@@ -299,9 +256,9 @@
               title={column.title}
               cards={column.cards}
               boardId={boardId}
-              onAddCard={addCard}
-              onCardMove={handleCardMove}
-              on:cardUpdate={(event) => handleCardUpdate(event.detail)}
+              onCardMoved={handleCardMove}
+              onCardUpdated={handleCardUpdated}
+              onCardDeleted={handleCardDeleted}
             />
           </div>
         {/each}
@@ -316,9 +273,9 @@
               title={column.title}
               cards={column.cards}
               boardId={boardId}
-              onAddCard={addCard}
-              onCardMove={handleCardMove}            
-              on:cardUpdate={(event) => handleCardUpdate(event.detail)}
+              onCardMoved={handleCardMove}
+              onCardUpdated={handleCardUpdated}
+              onCardDeleted={handleCardDeleted}
             />
           </div>
         {/each}

@@ -1,39 +1,26 @@
 <script lang="ts">
   import Card from './Card.svelte';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import { createEventDispatcher } from 'svelte';
+  import type { Card as CardType } from '../types';
+  import { log, error } from '../utils/vscodeMessaging';
 
-  const dispatch = createEventDispatcher();
-  
-  const { id, title, cards = [], boardId, onAddCard, onCardMove } = $props<{
+  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted } = $props<{
     id: string;
     title: string;
-    cards?: any[];
+    cards?: CardType[];
     boardId: string;
-    onAddCard: (columnId: string) => void;
-    onCardMove: (data: { cardId: string, fromColumnId: string, toColumnId: string }) => void;
+    onCardMoved: (data: { cardId: string, fromColumnId: string, toColumnId: string }) => void;
+    onCardUpdated: (card: CardType) => void;
+    onCardDeleted: (cardId: string) => void;
   }>();
 
+  let cardsList = $state(cards);
   let webviewContext = getWebviewContext();
   let isDraggingOver = $state(false);
   let dragOverIndex = $state(-1);
-  let isCollapsed = $state(false); // Track collapse state
+  let isCollapsed = $state(false);
   let isHovered = $state(false);
   
-  // Handle card update events from Card components
-  function handleCardUpdate(event: CustomEvent) {
-    // Log the event data for debugging
-    console.log('Column received cardUpdate event:', event.detail);
-    
-    try {
-      // Simply forward the event to the Board component
-      console.log('Forwarding cardUpdate event to Board component');
-      dispatch('cardUpdate', event.detail);
-    } catch (error) {
-      console.error('Error forwarding cardUpdate event:', error);
-    }
-  }
-
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
     if (event.dataTransfer) {
@@ -90,7 +77,7 @@
         const fromColumnId = cardData.fromColumnId;
         
         if (fromColumnId !== id) {
-          onCardMove({ cardId, fromColumnId, toColumnId: id });        
+          onCardMoved({ cardId, fromColumnId, toColumnId: id });        
         }
       } catch (error) {
         console.error('Error parsing drag data:', error);
@@ -100,6 +87,49 @@
 
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
+  }
+
+  function handleExtensionMessage(message: any) {
+    log('Column received message', message);
+    
+    switch (message.command) {
+      case 'cardAdded':
+        if (message.data.success && message.data.columnId === id) {
+          const { card } = message.data;
+          log('Card added to column', card);
+          cardsList = [...cardsList, card];
+        }
+        break;
+      case 'cardUpdated':
+        if (message.data.success && message.data.columnId === id) {
+          const { card } = message.data;
+          log('Card updated in column', card);
+          cardsList = cardsList.map((c: CardType) => c.id === card.id ? card : c);
+        }
+        break;
+      case 'cardDeleted':
+        if (message.data.success && message.data.columnId === id) {
+          const { cardId } = message.data;
+          log('Card deleted from column', cardId);
+          cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
+        }
+        break;
+      case 'cardMoved':
+        if (message.data.success) {
+          const { cardId, fromColumnId, toColumnId } = message.data;
+          if (fromColumnId === id) {
+            log('Card moved from column', cardId);
+            cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
+          } else if (toColumnId === id) {
+            const card = message.data.card;
+            log('Card moved to column', card);
+            cardsList = [...cardsList, card];
+          }
+        }
+        break;
+      default:
+        log('Unknown message', message);
+    }
   }
 </script>
 
@@ -135,7 +165,7 @@
       </span>
     </div>
     <button 
-      onclick={() => onAddCard(id)}
+      onclick={() => onCardMoved(id, id, id)}
       class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
       title="Add card"
       aria-label="Add card to column"
@@ -149,15 +179,13 @@
   
   {#if !isCollapsed}
     <div class="p-2 flex-1 overflow-y-auto space-y-2 cards-list">
-      {#each cards as card, index (card.id)}
+      {#each cardsList as card, index (card.id)}
         <div 
           class="card-item relative transition-transform duration-100 hover:-translate-y-0.5 {isDraggingOver && dragOverIndex === index ? 'before:content-[""] before:absolute before:top-[-4px] before:left-0 before:right-0 before:h-[2px] before:bg-[var(--vscode-focusBorder)] before:z-10' : ''}"
         >
           <Card 
             {...card} 
             columnId={id}
-            boardId={boardId}
-            on:cardUpdate={handleCardUpdate}
           />
         </div>
       {/each}

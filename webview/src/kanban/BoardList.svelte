@@ -1,7 +1,7 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
   import { onMount } from 'svelte';
-  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from '../utils/vscodeMessaging';
+  import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
 
   const { onBoardSelect } = $props<{
     onBoardSelect: (boardId: string) => void;
@@ -73,7 +73,7 @@
         }
         break;
       default:
-        console.log('Unknown message:', message);
+        log('Unknown message', message);
     }
   }
 

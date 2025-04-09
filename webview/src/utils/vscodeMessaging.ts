@@ -1,4 +1,3 @@
-// Define the message interface
 export interface VSCodeMessage {
   command: string;
   data?: any;
@@ -219,4 +218,19 @@ export function removeMessageListener(
     // Remove from our map
     messageListeners.delete(callback);
   }
+}
+
+// Logging utilities
+export function log(message: string, data?: any) {
+  sendMessage({
+    command: "log",
+    data: { message, data },
+  });
+}
+
+export function error(message: string, error?: any) {
+  sendMessage({
+    command: "error",
+    data: { message, error },
+  });
 }
