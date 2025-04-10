@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 
-// Enhanced type definitions for better type safety (Suggestion 4)
+// Enhanced type definitions for better type safety 
 export interface WebviewMessageBase {
   command: string;
 }
 
-// Specific message type interfaces for each command (Suggestion 4)
+// Specific message type interfaces for each command 
 export interface LogMessage extends WebviewMessageBase {
   command: "log";
   data: { message: string; data?: any };
@@ -83,6 +83,11 @@ export interface OpenBoardInEditorMessage extends WebviewMessageBase {
   data: { boardId: string };
 }
 
+export interface ShowErrorMessageMessage extends WebviewMessageBase {
+  command: "showErrorMessage";
+  data: { message: string };
+}
+
 // Union type of all possible message types (Suggestion 4)
 export type WebviewMessage =
   | LogMessage
@@ -96,6 +101,7 @@ export type WebviewMessage =
   | DeleteCardMessage
   | MoveCardMessage
   | OpenBoardInEditorMessage
+  | ShowErrorMessageMessage
   | WebviewMessageBase; // Fallback for backward compatibility
 
 // Store for boards data
@@ -298,6 +304,9 @@ export class MessageHandler {
           break;
         case "error":
           this.handleError(message as ErrorMessage);
+          break;
+        case "showErrorMessage":
+          this.handleShowErrorMessage(message as ShowErrorMessageMessage);
           break;
         case "getBoards":
           await this.handleGetBoards();
@@ -663,6 +672,18 @@ export class MessageHandler {
       boardToUpdate.updatedAt = new Date().toISOString();
       await this.saveBoards(boardsForUpdate);
 
+      // Log detailed card update information
+      console.log(`[CARD UPDATE] Details of updated card:`);
+      console.log(
+        `- Original title: "${columnToUpdate.cards[cardIndex].title}"`
+      );
+      console.log(`- Updated title: "${sanitizedCard.title}"`);
+      console.log(`- Card ID: ${sanitizedCard.id}`);
+      console.log(
+        `- Column: ${columnToUpdate.title} (${message.data.columnId})`
+      );
+      console.log(`- Board: ${boardToUpdate.title} (${message.data.boardId})`);
+
       // Use direct console.log instead of logger.info to avoid linter issues
       console.log(
         `[INFO] Card updated successfully: ${sanitizedCard.id} in column ${message.data.columnId}`
@@ -865,6 +886,14 @@ export class MessageHandler {
       "boogie.openBoardInEditor",
       message.data.boardId
     );
+  }
+
+  private handleShowErrorMessage(message: ShowErrorMessageMessage): void {
+    if (!message.data?.message) {
+      this.logger.error("ShowErrorMessage message is missing required data");
+      return;
+    }
+    vscode.window.showErrorMessage(message.data.message);
   }
 
   public sendMessage(message: WebviewMessage | ResponseMessage): void {

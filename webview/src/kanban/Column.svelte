@@ -4,7 +4,7 @@
   import type { Card as CardType } from '../types';
   import { log, error } from '../utils/vscodeMessaging';
 
-  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted } = $props<{
+  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard } = $props<{
     id: string;
     title: string;
     cards?: CardType[];
@@ -12,6 +12,7 @@
     onCardMoved: (data: { cardId: string, fromColumnId: string, toColumnId: string }) => void;
     onCardUpdated: (card: CardType) => void;
     onCardDeleted: (cardId: string) => void;
+    onAddCard: (columnId: string) => void;
   }>();
 
   let cardsList = $state(cards);
@@ -165,7 +166,7 @@
       </span>
     </div>
     <button 
-      onclick={() => onCardMoved(id, id, id)}
+      onclick={() => onAddCard(id)}
       class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
       title="Add card"
       aria-label="Add card to column"

@@ -2,7 +2,7 @@
 	import Board from './kanban/Board.svelte';
 	import BoardList from './kanban/BoardList.svelte';
 	import { onMount } from 'svelte';
-	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext } from './utils/vscodeMessaging';
+	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from './utils/vscodeMessaging';
   
     let currentBoardId = $state<string | null>(null);
     let messageHandler: (message: any) => void;
@@ -27,6 +27,7 @@
 	  const boardId = urlParams.get('boardId');
 	  if (boardId) {
 		currentBoardId = boardId;
+		log('Loaded board from URL', { boardId });
 	  }
 	  
 	  // Check if we have a board ID in the window object (for editor view)
@@ -34,6 +35,7 @@
 	  if (window.boardId) {
 		// @ts-ignore
 		currentBoardId = window.boardId;
+		log('Loaded board from window object', { boardId: currentBoardId });
 	  }
 	  
 	  // Detect theme from VSCode
@@ -68,21 +70,26 @@
 	});
   
 	function handleExtensionMessage(message: any) {
+	  log('App received message', message);
+	  
 	  switch (message.command) {
 		case 'boardLoaded':
 		  if (message.data.success) {
 			// Board data loaded successfully
+			log('Board loaded in App', { boardId: currentBoardId });
 		  }
 		  break;
 		case 'themeChanged':
 		  theme = message.data.theme;
+		  log('Theme changed', { theme });
 		  break;
 		default:
-		  console.log('Unknown message:', message);
+		  log('Unknown message in App', message);
 	  }
 	}
   
 	function handleBoardSelect(boardId: string) {
+	  log('Board selected', { boardId });
 	  currentBoardId = boardId;
 	  // Update URL without reloading the page
 	  const url = new URL(window.location.href);
@@ -91,6 +98,7 @@
 	}
   
 	function handleBackToBoards() {
+	  log('Navigating back to boards list');
 	  currentBoardId = null;
 	  // Update URL without reloading the page
 	  const url = new URL(window.location.href);

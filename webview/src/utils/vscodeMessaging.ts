@@ -222,15 +222,72 @@ export function removeMessageListener(
 
 // Logging utilities
 export function log(message: string, data?: any) {
+  // Safely stringify data to avoid circular references
+  let safeData = undefined;
+  if (data !== undefined) {
+    try {
+      // Using a custom replacer to handle circular references
+      const seen = new WeakSet();
+      safeData = JSON.parse(
+        JSON.stringify(data, (key, value) => {
+          // Handle circular references
+          if (typeof value === "object" && value !== null) {
+            if (seen.has(value)) {
+              return "[Circular]";
+            }
+            seen.add(value);
+          }
+          return value;
+        })
+      );
+    } catch (err) {
+      safeData = { error: "Could not stringify data", message: String(err) };
+    }
+  }
+
   sendMessage({
     command: "log",
-    data: { message, data },
+    data: { message, data: safeData },
   });
 }
 
-export function error(message: string, error?: any) {
+export function error(message: string, err?: any) {
+  // Convert error to a safe object
+  let safeError = undefined;
+  if (err !== undefined) {
+    if (err instanceof Error) {
+      safeError = {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+      };
+    } else {
+      try {
+        // Using a custom replacer to handle circular references
+        const seen = new WeakSet();
+        safeError = JSON.parse(
+          JSON.stringify(err, (key, value) => {
+            // Handle circular references
+            if (typeof value === "object" && value !== null) {
+              if (seen.has(value)) {
+                return "[Circular]";
+              }
+              seen.add(value);
+            }
+            return value;
+          })
+        );
+      } catch (e) {
+        safeError = {
+          error: "Could not stringify error object",
+          message: String(err),
+        };
+      }
+    }
+  }
+
   sendMessage({
     command: "error",
-    data: { message, error },
+    data: { message, error: safeError },
   });
 }

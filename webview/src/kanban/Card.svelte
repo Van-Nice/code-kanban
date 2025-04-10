@@ -55,7 +55,12 @@
       title: editedTitle,
       description: editedDescription,
       labels: editedLabels,
-      assignee: editedAssignee
+      assignee: editedAssignee,
+      columnId,
+      boardId,
+      order: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     
     try {
@@ -73,6 +78,11 @@
       isEditing = false;
     } catch (err) {
       error('Error updating card', err);
+      // Use VS Code notification API via message instead of alert
+      sendMessage({
+        command: 'showErrorMessage',
+        data: { message: 'Failed to save card changes. Please try again.' }
+      });
     }
   }
 
@@ -264,50 +274,12 @@
             onclick={(e: MouseEvent) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Save button clicked');
+              log('Save button clicked');
               saveChanges();
             }}
             class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Save
-          </button>
-          <button
-            type="button"
-            onclick={(e: MouseEvent) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('Debug Save clicked');
-              
-              try {
-                // Create the update message directly
-                const updatedCard = {
-                  id,
-                  title: editedTitle,
-                  description: editedDescription,
-                  labels: editedLabels,
-                  assignee: editedAssignee
-                };
-                
-                console.log('DEBUG: Sending card update:', updatedCard);
-                sendMessage({
-                  command: 'updateCard',
-                  data: { 
-                    card: updatedCard, 
-                    columnId,
-                    boardId
-                  }
-                });
-                
-                alert(`Debug Save: Card update message sent (try ${Date.now()})`);
-                isEditing = false;
-              } catch (error) {
-                console.error('Error in Debug Save:', error);
-                alert('Error: ' + String(error));
-              }
-            }}
-            class="px-2 py-1 text-sm bg-[var(--vscode-warningBackground)] text-[var(--vscode-warningForeground)] rounded-sm hover:bg-[var(--vscode-errorBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-          >
-            Debug Save
           </button>
         </div>
       </div>

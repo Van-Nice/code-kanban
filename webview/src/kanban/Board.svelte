@@ -91,7 +91,35 @@
         if (message.data.success) {
           const { card, columnId } = message.data;
           log('Card updated', card);
+          // First log the card that's being replaced
+          const currentCards = getColumnCards(columnId);
+          const existingCard = currentCards.find(c => c.id === card.id);
+          if (existingCard) {
+            log('Replacing card', { 
+              oldTitle: existingCard.title, 
+              newTitle: card.title,
+              cardId: card.id
+            });
+          } else {
+            log('Card not found in column', { columnId, cardId: card.id });
+          }
+          
+          // Update the cards in the column
           updateColumnCards(columnId, getColumnCards(columnId).map(c => c.id === card.id ? card : c));
+          
+          // Verify the update was applied
+          const updatedCards = getColumnCards(columnId);
+          const updatedCard = updatedCards.find(c => c.id === card.id);
+          if (updatedCard) {
+            log('Card successfully updated', { 
+              title: updatedCard.title,
+              cardId: updatedCard.id 
+            });
+          } else {
+            error('Failed to find updated card after update', { columnId, cardId: card.id });
+          }
+        } else if (message.data.error) {
+          error('Card update failed', message.data.error);
         }
         break;
       case 'cardDeleted':
@@ -128,6 +156,8 @@
   }
 
   function addCard(columnId: string) {
+    log('Adding new card to column', { columnId });
+    
     const newCard: Card = {
       id: uuidv4(),
       title: 'New Card',
@@ -259,6 +289,7 @@
               onCardMoved={handleCardMove}
               onCardUpdated={handleCardUpdated}
               onCardDeleted={handleCardDeleted}
+              onAddCard={addCard}
             />
           </div>
         {/each}
@@ -276,6 +307,7 @@
               onCardMoved={handleCardMove}
               onCardUpdated={handleCardUpdated}
               onCardDeleted={handleCardDeleted}
+              onAddCard={addCard}
             />
           </div>
         {/each}
