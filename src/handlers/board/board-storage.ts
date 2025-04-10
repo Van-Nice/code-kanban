@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Board } from "./types";
+import { Board } from "../types";
 
 export class BoardStorage {
   private context: vscode.ExtensionContext;

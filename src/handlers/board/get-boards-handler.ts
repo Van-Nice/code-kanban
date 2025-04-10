@@ -1,5 +1,5 @@
 import { GetBoardsMessage, BoardsLoadedResponse } from "../messages";
-import { HandlerContext } from "./message-handler";
+import { HandlerContext } from "../message-handler";
 
 export async function handleGetBoards(
   message: GetBoardsMessage,

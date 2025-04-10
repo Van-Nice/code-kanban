@@ -1,18 +1,11 @@
 <script lang="ts">
   import Card from './Card.svelte';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import type { Card as CardType } from '../types';
+  import type { Card as CardType, ColumnData } from './types';
   import { log, error } from '../utils/vscodeMessaging';
-  import { createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
 
-  // Define the ColumnData type
-  interface ColumnData {
-    id: string;
-    title: string;
-    cards: CardType[];
-  }
-
-  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard, onDeleteColumn } = $props<{
+  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard, onDeleteColumn, onUpdateColumn } = $props<{
     id: string;
     title: string;
     cards?: CardType[];
@@ -21,6 +14,7 @@
     onCardUpdated: (card: CardType) => void;
     onCardDeleted: (cardId: string) => void;
     onAddCard: (columnId: string) => void;
+    onUpdateColumn: (columnId: string) => void;
     onDeleteColumn?: (columnId: string) => void;
   }>();
 
@@ -33,77 +27,156 @@
   let isEditingTitle = $state(false);
   let editedTitle = $state(title);
   let isMenuOpen = $state(false);
-  
-  // Watch for title prop changes
+  let columnElement: HTMLElement; // Reference to the root element
+  let clickHandler: (e: MouseEvent) => void;
+
+  onMount(() => {
+    // Consolidated event delegation for clicks
+    clickHandler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
+      // Add card button
+      if (target.closest('[data-action="add-card"]')) {
+        e.preventDefault();
+        e.stopPropagation();
+        onAddCard(id);
+        return;
+      }
+
+      // Column title
+      if (target.closest('.column-title')) {
+        e.preventDefault();
+        e.stopPropagation();
+        startEditingTitle();
+        return;
+      }
+
+      // Collapse/expand button
+      if (target.closest('.collapse-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCollapse();
+        return;
+      }
+
+      // Menu button
+      if (target.closest('.menu-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        isMenuOpen = !isMenuOpen;
+        return;
+      }
+
+      // Card interactions
+      const cardItem = target.closest('.card-item');
+      if (cardItem) {
+        const cardId = cardItem.getAttribute('data-card-id');
+        if (!cardId) {
+          log('Error: Card ID not found');
+          return;
+        }
+
+        if (target.closest('.delete-card-btn')) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleCardDelete(cardId);
+          return;
+        }
+
+        if (target.closest('.edit-card-btn')) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleCardEdit(cardId);
+          return;
+        }
+
+        // Default card click
+        handleCardClick(cardId);
+      }
+    };
+
+    // Attach all event listeners to columnElement
+    columnElement.addEventListener('click', clickHandler);
+    columnElement.addEventListener('dragover', handleDragOver);
+    columnElement.addEventListener('dragleave', handleDragLeave);
+    columnElement.addEventListener('drop', handleDrop);
+  });
+
+  onDestroy(() => {
+    // Clean up all event listeners
+    if (clickHandler && columnElement) {
+      columnElement.removeEventListener('click', clickHandler);
+      columnElement.removeEventListener('dragover', handleDragOver);
+      columnElement.removeEventListener('dragleave', handleDragLeave);
+      columnElement.removeEventListener('drop', handleDrop);
+    }
+  });
+
+  function handleCardDelete(cardId: string) {
+    log('Delete card clicked:', cardId);
+    onCardDeleted(cardId);
+  }
+
+  function handleCardEdit(cardId: string) {
+    log('Edit card clicked:', cardId);
+    const card = cardsList.find((c: CardType) => c.id === cardId);
+    if (card) {
+      // TODO: Implement edit logic
+    }
+  }
+
+  function handleCardClick(cardId: string) {
+    log('Card clicked: ', cardId);
+    // TODO: Implement general card click logic
+  }
+
   $effect(() => {
     editedTitle = title;
   });
-  
+
   function startEditingTitle() {
     editedTitle = title;
     isEditingTitle = true;
   }
-  
+
   function saveColumnTitle() {
     if (!editedTitle.trim()) {
       log('Cannot save column: title is empty');
       return;
     }
-    
-    const updatedColumn = {
-      id,
-      title: editedTitle,
-      cards: cardsList
-    };
-    
+
     log('Updating column title', { oldTitle: title, newTitle: editedTitle });
     isEditingTitle = false;
-    
-    // Optimistically update local state
     cardsList = [...cardsList];
-    
-    // Forward to parent component
-    dispatch('updateColumn', { column: updatedColumn });
+    onUpdateColumn(id);
   }
-
-  const dispatch = createEventDispatcher<{
-    updateColumn: { column: ColumnData };
-  }>();
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = 'move';
       isDraggingOver = true;
-      
-      // Calculate the drop position based on mouse position
+
       const cardsContainer = event.currentTarget as HTMLElement;
-      const cardsList = cardsContainer.querySelector('.cards-list') as HTMLElement;
-      if (cardsList) {
-        const cardElements = cardsList.querySelectorAll('.card-item');
+      const cardsListEl = cardsContainer.querySelector('.cards-list') as HTMLElement;
+      if (cardsListEl) {
+        const cardElements = cardsListEl.querySelectorAll('.card-item');
         const mouseY = event.clientY;
-        
-        // Find the closest card element based on mouse position
+
         let closestIndex = -1;
         let closestDistance = Infinity;
-        
+
         cardElements.forEach((cardElement, index) => {
           const rect = cardElement.getBoundingClientRect();
           const cardMiddle = rect.top + rect.height / 2;
           const distance = Math.abs(mouseY - cardMiddle);
-          
           if (distance < closestDistance) {
             closestDistance = distance;
             closestIndex = index;
           }
         });
-        
-        // If mouse is below all cards, set to append at the end
-        if (mouseY > cardsList.getBoundingClientRect().bottom) {
-          dragOverIndex = cards.length;
-        } else {
-          dragOverIndex = closestIndex;
-        }
+
+        dragOverIndex = mouseY > cardsListEl.getBoundingClientRect().bottom ? cards.length : closestIndex;
       }
     }
   }
@@ -116,33 +189,19 @@
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
-    
     if (event.dataTransfer) {
       try {
         const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
-        const cardId = cardData.cardId;
-        const fromColumnId = cardData.fromColumnId;
-        
+        const { cardId, fromColumnId } = cardData;
         if (fromColumnId !== id) {
-          // Determine the position for insertion based on drop position
           const position = dragOverIndex >= 0 ? dragOverIndex : cardsList.length;
-          
           log(`Dropping card ${cardId} at position ${position} in column ${id}`);
-          
-          // Pass position information to the card move handler
-          onCardMoved({ 
-            cardId, 
-            fromColumnId, 
-            toColumnId: id,
-            position 
-          });
+          onCardMoved({ cardId, fromColumnId, toColumnId: id, position });
         }
-      } catch (error) {
-        console.error('Error parsing drag data:', error);
+      } catch (err) {
+        console.error('Error parsing drag data:', err);
       }
     }
-    
-    // Reset drag state
     isDraggingOver = false;
     dragOverIndex = -1;
   }
@@ -150,68 +209,22 @@
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
   }
-
-  function handleExtensionMessage(message: any) {
-    log('Column received message', message);
-    
-    switch (message.command) {
-      case 'cardAdded':
-        if (message.data.success && message.data.columnId === id) {
-          const { card } = message.data;
-          log('Card added to column', card);
-          cardsList = [...cardsList, card];
-        }
-        break;
-      case 'cardUpdated':
-        if (message.data.success && message.data.columnId === id) {
-          const { card } = message.data;
-          log('Card updated in column', card);
-          cardsList = cardsList.map((c: CardType) => c.id === card.id ? card : c);
-        }
-        break;
-      case 'cardDeleted':
-        if (message.data.success && message.data.columnId === id) {
-          const { cardId } = message.data;
-          log('Card deleted from column', cardId);
-          cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
-        }
-        break;
-      case 'cardMoved':
-        if (message.data.success) {
-          const { cardId, fromColumnId, toColumnId } = message.data;
-          if (fromColumnId === id) {
-            log('Card moved from column', cardId);
-            cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
-          } else if (toColumnId === id) {
-            const card = message.data.card;
-            log('Card moved to column', card);
-            cardsList = [...cardsList, card];
-          }
-        }
-        break;
-      default:
-        log('Unknown message', message);
-    }
-  }
 </script>
 
 <div
+  bind:this={columnElement}
   role="region"
   aria-label="Kanban column: {title}"
   class="bg-[var(--vscode-sideBar-background)] border border-[var(--vscode-panel-border)] rounded-sm h-full flex flex-col {webviewContext === 'sidebar' ? 'mb-4' : ''} {isDraggingOver ? 'border-[var(--vscode-focusBorder)]' : ''} hover:border-[var(--vscode-panel-border)] transition-colors"
-  ondragover={handleDragOver}
-  ondragleave={handleDragLeave}
-  ondrop={handleDrop}
   onmouseenter={() => isHovered = true}
   onmouseleave={() => isHovered = false}
 >
   <div class="flex justify-between items-center p-2 border-b border-[var(--vscode-panel-border)]">
     <div class="flex items-center gap-2">
-      <button 
-        onclick={toggleCollapse}
-        class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-        title={isCollapsed ? "Expand" : "Collapse"}
-        aria-label={isCollapsed ? "Expand column" : "Collapse column"}
+      <button
+        class="collapse-btn w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        title={isCollapsed ? 'Expand' : 'Collapse'}
+        aria-label={isCollapsed ? 'Expand column' : 'Collapse column'}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           {#if isCollapsed}
@@ -221,9 +234,9 @@
           {/if}
         </svg>
       </button>
-      
+
       {#if isEditingTitle}
-        <form 
+        <form
           class="flex-1"
           onsubmit={(e: Event) => {
             e.preventDefault();
@@ -231,8 +244,8 @@
             return false;
           }}
         >
-          <input 
-            type="text" 
+          <input
+            type="text"
             bind:value={editedTitle}
             class="w-full px-2 py-0.5 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
             autofocus
@@ -246,20 +259,19 @@
           />
         </form>
       {:else}
-        <h3 
-          class="text-sm font-medium text-[var(--vscode-foreground)] cursor-pointer hover:text-[var(--vscode-textLink-foreground)]"
-          onclick={startEditingTitle}
+        <h3
+          class="column-title text-sm font-medium text-[var(--vscode-foreground)] cursor-pointer hover:text-[var(--vscode-textLink-foreground)]"
           title="Click to edit column title"
         >{title}</h3>
       {/if}
-      
+
       <span class="text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] px-1.5 py-0.5 rounded-sm">
         {cards.length}
       </span>
     </div>
     <div class="flex">
-      <button 
-        onclick={() => onAddCard(id)}
+      <button
+        data-action="add-card"
         class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
         title="Add card"
         aria-label="Add card to column"
@@ -269,11 +281,10 @@
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
       </button>
-      
+
       <div class="relative ml-1">
-        <button 
-          onclick={() => isMenuOpen = !isMenuOpen}
-          class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        <button
+          class="menu-btn w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           title="More options"
           aria-label="Column options"
         >
@@ -283,12 +294,12 @@
             <circle cx="12" cy="19" r="1"></circle>
           </svg>
         </button>
-        
+
         {#if isMenuOpen}
           <div class="absolute right-0 mt-1 w-48 bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-dropdown-border)] shadow-lg rounded-sm z-10">
             <ul>
               <li>
-                <button 
+                <button
                   class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-dropdown-foreground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
                   onclick={() => {
                     startEditingTitle();
@@ -300,7 +311,7 @@
               </li>
               {#if onDeleteColumn}
                 <li>
-                  <button 
+                  <button
                     class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-errorForeground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
                     onclick={() => {
                       if (confirm('Are you sure you want to delete this column and all its cards?')) {
@@ -319,38 +330,35 @@
       </div>
     </div>
   </div>
-  
+
   {#if !isCollapsed}
     <div class="p-2 flex-1 overflow-y-auto space-y-2 cards-list">
       {#each cardsList as card, index (card.id)}
-        <div 
+        <div
           class="card-item relative transition-transform duration-100 hover:-translate-y-0.5 {isDraggingOver && dragOverIndex === index ? 'before:content-[""] before:absolute before:top-[-4px] before:left-0 before:right-0 before:h-[2px] before:bg-[var(--vscode-focusBorder)] before:z-10' : ''}"
+          data-card-id={card.id}
         >
-          <Card 
-            {...card} 
+          <Card
+            {...card}
             columnId={id}
-            on:update={(event) => {
-              const updatedCard = event.detail.card;
-              log('Card update event received in column', updatedCard);
-              // Update local state
+            onUpdateCard={(updatedCard) => {
+              log('Card update received in column', updatedCard);
               cardsList = cardsList.map((c: CardType) => c.id === updatedCard.id ? updatedCard : c);
-              // Notify board component
               onCardUpdated(updatedCard);
             }}
-            on:delete={(event) => {
-              const cardId = event.detail.cardId;
-              log('Card delete event received in column', cardId);
+            onDeleteCard={(cardId) => {
+              log('Card delete received in column', cardId);
               cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
               onCardDeleted(cardId);
             }}
           />
         </div>
       {/each}
-      
+
       {#if isDraggingOver && dragOverIndex === cards.length}
         <div class="h-1 my-2 rounded bg-[var(--vscode-focusBorder)]"></div>
       {/if}
-      
+
       {#if cards.length === 0}
         <div class="text-center py-4 text-[var(--vscode-descriptionForeground)] text-xs italic border border-dashed border-[var(--vscode-panel-border)] rounded-sm">
           Drop cards here
@@ -360,6 +368,6 @@
   {:else}
     <div class="p-2 text-center text-[var(--vscode-descriptionForeground)] text-xs">
       {cards.length} {cards.length === 1 ? 'card' : 'cards'} hidden
-    </div>    
+    </div>
   {/if}
 </div>

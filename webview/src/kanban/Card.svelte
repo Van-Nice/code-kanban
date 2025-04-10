@@ -1,15 +1,21 @@
 <script lang="ts">
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount } from 'svelte';
   import { log, error } from '../utils/vscodeMessaging';
+  import type { Card as CardType } from './types';
 
-  const dispatch = createEventDispatcher<{
-    update: { card: any };
-    delete: { cardId: string };
-  }>();
-
-  const { id, title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
+  const { 
+    id, 
+    title, 
+    description = '', 
+    labels = [], 
+    assignee = '', 
+    columnId, 
+    boardId,
+    onUpdateCard, // Callback for updating the card
+    onDeleteCard  // Callback for deleting the card
+  } = $props<{
     id: string;
     title: string;
     description?: string;
@@ -17,6 +23,8 @@
     assignee?: string;
     columnId: string;
     boardId: string;
+    onUpdateCard: (card: CardType) => void;
+    onDeleteCard: (cardId: string) => void;
   }>();
 
   let isEditing = $state(false);
@@ -86,7 +94,7 @@
     try {
       // Optimistically update UI before waiting for server response
       log('Optimistically updating card in UI', updatedCard);
-      dispatch('update', { card: updatedCard });
+      onUpdateCard(updatedCard);
       
       // Send direct update message
       log('Sending card update to extension', updatedCard);
@@ -182,7 +190,7 @@
   function deleteCard() {
     // Optimistically update UI first
     log('Optimistically deleting card from UI', id);
-    dispatch('delete', { cardId: id });
+    onDeleteCard(id);
     
     // Send message to extension
     sendMessage({
@@ -219,10 +227,6 @@
 
   function handleDragEnd() {
     isDragging = false;
-  }
-  
-  function handleCardClick() {
-    startEditing();
   }
 </script>
 
@@ -400,7 +404,8 @@
       <div class="flex justify-between items-start gap-2">
         <h3 class="text-sm font-medium text-[var(--vscode-foreground)] break-words">{title}</h3>
         <button
-          onclick={(e: MouseEvent) => { e.stopPropagation(); startEditing(); }}          title="Edit card"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); startEditing(); }}          
+          title="Edit card"
           aria-label="Edit card"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

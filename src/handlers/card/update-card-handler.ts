@@ -1,10 +1,10 @@
-import { AddCardMessage, CardResponse } from "./messages";
-import { HandlerContext } from "./message-handler";
-import { Card } from "./types";
-import { sanitizeString } from "./utils";
+import { UpdateCardMessage, CardResponse } from "../messages";
+import { HandlerContext } from "../message-handler";
+import { Card } from "../types";
+import { sanitizeString } from "../utils";
 
-export async function handleAddCard(
-  message: AddCardMessage,
+export async function handleUpdateCard(
+  message: UpdateCardMessage,
   context: HandlerContext
 ): Promise<CardResponse> {
   const { storage, logger } = context;
@@ -14,9 +14,9 @@ export async function handleAddCard(
     !message.data?.columnId ||
     !message.data?.card
   ) {
-    logger.error("Missing required fields for card addition");
+    logger.error("Missing required fields for card update");
     return {
-      command: "cardAdded",
+      command: "cardUpdated",
       data: {
         success: false,
         error: "Missing required fields: boardId, columnId, or card data",
@@ -38,7 +38,6 @@ export async function handleAddCard(
       assignee: sanitizeString(message.data.card.assignee || "", 100),
       boardId: message.data.boardId,
       columnId: message.data.columnId,
-      createdAt: message.data.card.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
@@ -49,7 +48,7 @@ export async function handleAddCard(
     if (boardIndex === -1) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
-        command: "cardAdded",
+        command: "cardUpdated",
         data: {
           success: false,
           error: `Board with ID ${message.data.boardId} not found`,
@@ -68,7 +67,7 @@ export async function handleAddCard(
         `Column with ID ${message.data.columnId} not found in board ${message.data.boardId}`
       );
       return {
-        command: "cardAdded",
+        command: "cardUpdated",
         data: {
           success: false,
           error: `Column with ID ${message.data.columnId} not found`,
@@ -76,15 +75,27 @@ export async function handleAddCard(
       };
     }
 
-    // Add card to column
+    // Find the card to update
     const column = board.columns[columnIndex];
+    const cardIndex = column.cards.findIndex(
+      (c) => c.id === message.data.card.id
+    );
 
-    // Set the order if not provided
-    if (sanitizedCard.order === undefined) {
-      sanitizedCard.order = column.cards.length;
+    if (cardIndex === -1) {
+      logger.error(
+        `Card with ID ${message.data.card.id} not found in column ${message.data.columnId}`
+      );
+      return {
+        command: "cardUpdated",
+        data: {
+          success: false,
+          error: `Card with ID ${message.data.card.id} not found`,
+        },
+      };
     }
 
-    column.cards.push(sanitizedCard);
+    // Update the card
+    column.cards[cardIndex] = sanitizedCard;
 
     // Update the board's timestamp
     board.updatedAt = new Date().toISOString();
@@ -93,10 +104,10 @@ export async function handleAddCard(
     await storage.saveBoards(boards);
 
     logger.debug(
-      `Card ${sanitizedCard.id} added to column ${message.data.columnId}`
+      `Card ${sanitizedCard.id} updated in column ${message.data.columnId}`
     );
     return {
-      command: "cardAdded",
+      command: "cardUpdated",
       data: {
         success: true,
         card: sanitizedCard,
@@ -104,12 +115,12 @@ export async function handleAddCard(
       },
     };
   } catch (error) {
-    logger.error("Error adding card:", error);
+    logger.error("Error updating card:", error);
     return {
-      command: "cardAdded",
+      command: "cardUpdated",
       data: {
         success: false,
-        error: `Failed to add card: ${
+        error: `Failed to update card: ${
           error instanceof Error ? error.message : String(error)
         }`,
       },

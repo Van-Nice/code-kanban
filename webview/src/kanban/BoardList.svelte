@@ -2,18 +2,10 @@
   import { v4 as uuidv4 } from 'uuid';
   import { onMount } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
-
+  import type { Board } from './types'; 
   const { onBoardSelect } = $props<{
     onBoardSelect: (boardId: string) => void;
   }>();
-
-  interface Board {
-    id: string;
-    title: string;
-    description: string;
-    createdAt: string;
-    updatedAt: string;
-  }
 
   let boards = $state<Board[]>([]);
   let newBoardTitle = $state('');
@@ -85,7 +77,8 @@
       title: newBoardTitle,
       description: newBoardDescription,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      columns: [],
     };
 
     // Send message to extension

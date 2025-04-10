@@ -1,5 +1,5 @@
-import { DeleteBoardMessage, BoardDeletedResponse } from "./messages";
-import { HandlerContext } from "./message-handler";
+import { DeleteBoardMessage, BoardDeletedResponse } from "../messages";
+import { HandlerContext } from "../message-handler";
 
 export async function handleDeleteBoard(
   message: DeleteBoardMessage,

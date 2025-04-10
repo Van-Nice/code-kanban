@@ -3,24 +3,11 @@
   import { v4 as uuidv4 } from 'uuid';
   import { onMount, onDestroy } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
-  import type { Card } from '../types';
+  import type { Card, ColumnData, BoardSnapshot } from './types';
 
   const { boardId } = $props<{
     boardId: string;
   }>();
-
-  interface ColumnData {
-    id: string;
-    title: string;
-    cards: Card[];
-  }
-
-  // Store snapshots of the board state for error recovery
-  interface BoardSnapshot {
-    columns: ColumnData[];
-    timestamp: number;
-    operation: string;
-  }
 
   let columns = $state<ColumnData[]>([]);
   let messageHandler: (message: any) => void;
@@ -411,6 +398,17 @@
     });
   }
 
+  // New function that accepts columnId as parameter
+  function handleUpdateColumn(columnId: string) {
+    log('Handling column update', columnId);
+    const column = columns.find(col => col.id === columnId);
+    if (column) {
+      updateColumn(column);
+    } else {
+      error(`Could not find column with ID ${columnId}`, null);
+    }
+  }
+
   function deleteColumn(columnId: string) {
     // Don't allow deleting the last column
     if (columns.length <= 1) {
@@ -599,6 +597,7 @@
               onCardDeleted={handleCardDeleted}
               onAddCard={handleAddCard}
               onDeleteColumn={deleteColumn}
+              onUpdateColumn={handleUpdateColumn}
             />
           </div>
         {/each}
@@ -618,6 +617,7 @@
               onCardDeleted={handleCardDeleted}
               onAddCard={handleAddCard}
               onDeleteColumn={deleteColumn}
+              onUpdateColumn={handleUpdateColumn}
             />
           </div>
         {/each}

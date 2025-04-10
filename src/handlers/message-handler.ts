@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { WebviewMessage, ResponseMessage } from "./messages";
+import { WebviewMessage, ResponseMessage, UpdateCardMessage } from "./messages";
 import { Logger } from "./logger";
-import { BoardStorage } from "./board-storage";
+import { BoardStorage } from "./board/board-storage";
 import * as handlers from ".";
 
 export interface HandlerContext {
@@ -12,12 +12,12 @@ export interface HandlerContext {
   vscodeContext: vscode.ExtensionContext;
 }
 
-type HandlerFunction = (
-  message: WebviewMessage,
+type HandlerFunction<T extends WebviewMessage = WebviewMessage> = (
+  message: T,
   context: HandlerContext
-) => Promise<ResponseMessage | void>;
+) => Promise<ResponseMessage | UpdateCardMessage | void>;
 
-const handlerMap: { [command: string]: HandlerFunction } = {
+const handlerMap: { [command: string]: HandlerFunction<any> } = {
   log: handlers.handleLog,
   error: handlers.handleError,
   getBoards: handlers.handleGetBoards,
@@ -77,9 +77,9 @@ export class MessageHandler {
 
       const handler = handlerMap[message.command];
       if (handler) {
-        const response = await handler(message, handlerContext);
+        const response = await handler(message as any, handlerContext);
         if (response) {
-          this.sendMessage(response);
+          this.sendMessage(response as any);
         }
       } else {
         this.logger.error(`Unknown command: ${message.command}`);

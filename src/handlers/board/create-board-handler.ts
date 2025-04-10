@@ -1,7 +1,7 @@
-import { CreateBoardMessage, BoardCreatedResponse } from "./messages";
-import { HandlerContext } from "./message-handler";
-import { Board } from "./types";
-import { sanitizeString } from "./utils";
+import { CreateBoardMessage, BoardCreatedResponse } from "../messages";
+import { HandlerContext } from "../message-handler";
+import { Board } from "../types";
+import { sanitizeString } from "../utils";
 
 export async function handleCreateBoard(
   message: CreateBoardMessage,

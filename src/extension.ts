@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { MessageHandler } from "./messageHandler";
+import { MessageHandler } from "./handlers/message-handler";
 
 // Using context for extension-wide data, not global messageHandler
 let extensionContext: vscode.ExtensionContext;
@@ -11,33 +11,33 @@ export function activate(context: vscode.ExtensionContext) {
   extensionContext = context;
 
   // Set up webview
-  context.subscriptions.push(
+  extensionContext.subscriptions.push(
     vscode.window.registerWebviewViewProvider("boogieWebview", {
       resolveWebviewView(webviewView: vscode.WebviewView) {
         // Enable scripts and set resource roots
         webviewView.webview.options = {
           enableScripts: true,
           localResourceRoots: [
-            vscode.Uri.file(path.join(context.extensionPath, "dist")),
+            vscode.Uri.file(path.join(extensionContext.extensionPath, "dist")),
           ],
         };
 
         // Get the path to the compiled webview.js and convert it to a webview URI
         const webviewJsPath = vscode.Uri.file(
-          path.join(context.extensionPath, "dist", "webview.js")
+          path.join(extensionContext.extensionPath, "dist", "webview.js")
         );
         const webviewJsUri = webviewView.webview.asWebviewUri(webviewJsPath);
 
         // Get the path to the CSS file
         const webviewCssPath = vscode.Uri.file(
-          path.join(context.extensionPath, "dist", "webview.css")
+          path.join(extensionContext.extensionPath, "dist", "webview.css")
         );
         const webviewCssUri = webviewView.webview.asWebviewUri(webviewCssPath);
 
         // Initialize the message handler with sidebar context - instance specific
         const messageHandler = new MessageHandler(
           webviewView.webview,
-          context,
+          extensionContext,
           "sidebar"
         );
 
@@ -74,7 +74,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
           },
           undefined,
-          context.subscriptions
+          extensionContext.subscriptions
         );
 
         // Set the HTML content with js and css embedded for the webview view
@@ -117,7 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
           enableScripts: true,
           retainContextWhenHidden: true,
           localResourceRoots: [
-            vscode.Uri.file(path.join(context.extensionPath, "dist")),
+            vscode.Uri.file(path.join(extensionContext.extensionPath, "dist")),
           ],
         }
       );
@@ -125,7 +125,7 @@ export function activate(context: vscode.ExtensionContext) {
       // Initialize message handler with editor context - instance specific
       const messageHandler = new MessageHandler(
         panel.webview,
-        context,
+        extensionContext,
         "editor"
       );
 
@@ -142,18 +142,18 @@ export function activate(context: vscode.ExtensionContext) {
           await messageHandler.handleMessage(message);
         },
         undefined,
-        context.subscriptions
+        extensionContext.subscriptions
       );
 
       // Get the path to the compiled webview.js and convert it to a webview URI
       const webviewJsPath = vscode.Uri.file(
-        path.join(context.extensionPath, "dist", "webview.js")
+        path.join(extensionContext.extensionPath, "dist", "webview.js")
       );
       const webviewJsUri = panel.webview.asWebviewUri(webviewJsPath);
 
       // Get the path to the CSS file
       const webviewCssPath = vscode.Uri.file(
-        path.join(context.extensionPath, "dist", "webview.css")
+        path.join(extensionContext.extensionPath, "dist", "webview.css")
       );
       const webviewCssUri = panel.webview.asWebviewUri(webviewCssPath);
 
@@ -192,7 +192,7 @@ export function activate(context: vscode.ExtensionContext) {
           enableScripts: true,
           retainContextWhenHidden: true,
           localResourceRoots: [
-            vscode.Uri.file(path.join(context.extensionPath, "dist")),
+            vscode.Uri.file(path.join(extensionContext.extensionPath, "dist")),
           ],
         }
       );
@@ -200,7 +200,7 @@ export function activate(context: vscode.ExtensionContext) {
       // Initialize message handler with editor context - instance specific
       const messageHandler = new MessageHandler(
         panel.webview,
-        context,
+        extensionContext,
         "editor"
       );
 
@@ -217,18 +217,18 @@ export function activate(context: vscode.ExtensionContext) {
           await messageHandler.handleMessage(message);
         },
         undefined,
-        context.subscriptions
+        extensionContext.subscriptions
       );
 
       // Get the path to the compiled webview.js and convert it to a webview URI
       const webviewJsPath = vscode.Uri.file(
-        path.join(context.extensionPath, "dist", "webview.js")
+        path.join(extensionContext.extensionPath, "dist", "webview.js")
       );
       const webviewJsUri = panel.webview.asWebviewUri(webviewJsPath);
 
       // Get the path to the CSS file
       const webviewCssPath = vscode.Uri.file(
-        path.join(context.extensionPath, "dist", "webview.css")
+        path.join(extensionContext.extensionPath, "dist", "webview.css")
       );
       const webviewCssUri = panel.webview.asWebviewUri(webviewCssPath);
 
@@ -255,7 +255,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(disposable, openBoardInEditorDisposable);
+  extensionContext.subscriptions.push(disposable, openBoardInEditorDisposable);
 }
 
 // This method is called when your extension is deactivated

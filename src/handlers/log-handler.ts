@@ -1,4 +1,4 @@
-import { LogMessage } from "../messages";
+import { LogMessage } from "./messages";
 import { HandlerContext } from "./message-handler";
 
 export async function handleLog(
