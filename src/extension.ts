@@ -47,18 +47,31 @@ export function activate(context: vscode.ExtensionContext) {
             console.log(`Sidebar received message: ${message.command}`);
             if (message.command === "updateCard") {
               console.log(
-                "Extension received updateCard message:",
+                "⭐⭐⭐ CRITICAL UPDATE MESSAGE RECEIVED IN SIDEBAR - Details:",
                 JSON.stringify(message.data, null, 2)
               );
 
               // Extra logging for updateCard messages
-              console.log("CRITICAL UPDATE MESSAGE RECEIVED - Details:");
-              console.log(`Card ID: ${message.data?.card?.id}`);
-              console.log(`Card Title: ${message.data?.card?.title}`);
-              console.log(`Column ID: ${message.data?.columnId}`);
-              console.log(`Board ID: ${message.data?.boardId}`);
+              console.log("⭐ CRITICAL UPDATE MESSAGE - Card Properties:");
+              console.log(`- Card ID: ${message.data?.card?.id}`);
+              console.log(`- Card Title: "${message.data?.card?.title}"`);
+              console.log(`- Column ID: ${message.data?.columnId}`);
+              console.log(`- Board ID: ${message.data?.boardId}`);
+
+              try {
+                await messageHandler.handleMessage(message);
+                console.log(
+                  "⭐ CRITICAL UPDATE MESSAGE - Handler completed successfully"
+                );
+              } catch (error) {
+                console.error(
+                  "⭐ CRITICAL UPDATE MESSAGE - Handler failed with error:",
+                  error
+                );
+              }
+            } else {
+              await messageHandler.handleMessage(message);
             }
-            await messageHandler.handleMessage(message);
           },
           undefined,
           context.subscriptions

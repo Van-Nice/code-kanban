@@ -1,8 +1,13 @@
 <script lang="ts">
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import { log, error } from '../utils/vscodeMessaging';
+
+  const dispatch = createEventDispatcher<{
+    update: { card: any };
+    delete: { cardId: string };
+  }>();
 
   const { id, title, description = '', labels = [], assignee = '', columnId, boardId } = $props<{
     id: string;
@@ -23,6 +28,8 @@
   let webviewContext = getWebviewContext();
   let isDragging = $state(false);
   let cardTitleInput = $state<HTMLInputElement | null>(null);
+  let isSaving = $state(false);
+  let saveError = $state<string | null>(null);
 
   function startEditing() {
     isEditing = true;
@@ -46,13 +53,26 @@
     
     if (!editedTitle.trim()) {
       log('Cannot save: title is empty');
+      saveError = 'Title cannot be empty';
       return;
     }
 
+    // Reset error state and set saving state
+    saveError = null;
+    isSaving = true;
+
+    // Log edited values for debugging
+    log('Card being saved with values:', { 
+      editedTitle,
+      originalTitle: title, 
+      editedDescription, 
+      hasChanged: editedTitle !== title || editedDescription !== description
+    });
+    
     // Create a copy of the card with updated values
     const updatedCard = {
       id, // Keep the same ID
-      title: editedTitle,
+      title: editedTitle, // Make sure we're using the edited title
       description: editedDescription,
       labels: editedLabels,
       assignee: editedAssignee,
@@ -64,8 +84,12 @@
     };
     
     try {
+      // Optimistically update UI before waiting for server response
+      log('Optimistically updating card in UI', updatedCard);
+      dispatch('update', { card: updatedCard });
+      
       // Send direct update message
-      log('Sending card update', updatedCard);
+      log('Sending card update to extension', updatedCard);
       sendMessage({
         command: 'updateCard',
         data: { 
@@ -75,8 +99,73 @@
         }
       });
       
-      isEditing = false;
+      // Register a one-time listener for this specific card update
+      const specificCardId = id;
+      const responseHandler = (event: MessageEvent<any>) => {
+        const msg = event.data;
+        log(`🔵 LISTENER: Received message in Card listener: ${msg.command}`);
+        
+        // For any cardUpdated message, log it for debugging
+        if (msg.command === 'cardUpdated') {
+          log(`🔵 LISTENER: Card update response received`);
+          log(`🔵 LISTENER: Response for card ID: ${msg.data?.card?.id}`);
+          log(`🔵 LISTENER: Expected card ID: ${specificCardId}`);
+          log(`🔵 LISTENER: Success: ${msg.data?.success}`);
+          log(`🔵 LISTENER: Error: ${msg.data?.error || 'None'}`);
+        }
+        
+        // Check if this response is for our specific card
+        if (msg.command === 'cardUpdated' && 
+            msg.data?.card?.id === specificCardId) {
+          log('🔵 LISTENER: Found matching response for our card!');
+          
+          // Clear timeout
+          clearTimeout(saveTimeout);
+          
+          // Handle success/failure
+          if (msg.data.success) {
+            log('Card update confirmed by server', msg.data.card);
+            isSaving = false;
+            isEditing = false;
+          } else if (msg.data.error) {
+            log('Card update failed', msg.data.error);
+            saveError = msg.data.error;
+            isSaving = false;
+          }
+          
+          // Always remove the event listener
+          window.removeEventListener('message', responseHandler);
+          log('🔵 LISTENER: Removed event listener after processing response');
+        }
+      };
+      
+      // Add the message listener
+      window.addEventListener('message', responseHandler);
+      log('🔵 LISTENER: Added event listener for card updates');
+      
+      // Set up a timeout to detect if the update is taking too long
+      const saveTimeout = setTimeout(() => {
+        if (isSaving) {
+          // Still saving after timeout - might be an issue with the server
+          log('Card save is taking longer than expected');
+          log('🔵 LISTENER: First timeout reached (3s) - still waiting for response');
+        }
+      }, 3000);
+        
+      // Fallback - if after 10 seconds we haven't gotten a response, assume failure
+      setTimeout(() => {
+        if (isSaving) {
+          log('No update response received after timeout, manual check required');
+          log('🔵 LISTENER: Final timeout reached (10s) - no response received');
+          saveError = 'Update timed out. Please check if your changes were saved.';
+          isSaving = false;
+          window.removeEventListener('message', responseHandler);
+          log('🔵 LISTENER: Removed event listener after timeout');
+        }
+      }, 10000);
     } catch (err) {
+      isSaving = false;
+      saveError = 'Failed to save card changes: ' + (err instanceof Error ? err.message : 'Unknown error');
       error('Error updating card', err);
       // Use VS Code notification API via message instead of alert
       sendMessage({
@@ -91,6 +180,10 @@
   }
 
   function deleteCard() {
+    // Optimistically update UI first
+    log('Optimistically deleting card from UI', id);
+    dispatch('delete', { cardId: id });
+    
     // Send message to extension
     sendMessage({
       command: 'deleteCard',
@@ -152,6 +245,7 @@
     <form 
       onsubmit={(e: Event) => {
         e.preventDefault();
+        log('Form submitted with title:', editedTitle);
         saveChanges();
         return false;
       }}
@@ -163,8 +257,8 @@
         <input
           type="text"
           id="card-title"
-          bindthis={cardTitleInput}
-          bindvalue={editedTitle}
+          bind:this={cardTitleInput}
+          bind:value={editedTitle}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           autofocus
           onkeydown={(e: KeyboardEvent) => {
@@ -176,7 +270,7 @@
         <label for="card-description" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Description</label>
         <textarea
           id="card-description"
-          bindvalue={editedDescription}
+          bind:value={editedDescription}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           rows="2"
           onkeydown={(e: KeyboardEvent) => {
@@ -189,7 +283,7 @@
         <input
           type="text"
           id="card-assignee"
-          bindvalue={editedAssignee}
+          bind:value={editedAssignee}
           class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           placeholder="Assign to..."
           onkeydown={(e: KeyboardEvent) => {
@@ -219,7 +313,7 @@
         <div class="flex gap-1">
           <input
             type="text"
-            bindvalue={newLabel}
+            bind:value={newLabel}
             id="new-label"
             class="flex-1 px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-l-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
             placeholder="Add label..."
@@ -274,15 +368,21 @@
             onclick={(e: MouseEvent) => {
               e.preventDefault();
               e.stopPropagation();
-              log('Save button clicked');
+              log('Save button clicked, current title:', editedTitle);
               saveChanges();
             }}
             class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+            disabled={isSaving}
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
+      {#if saveError}
+        <div class="mt-2 text-[var(--vscode-errorForeground)] text-xs">
+          Error: {saveError}
+        </div>
+      {/if}
     </form>
   {:else}
     <div

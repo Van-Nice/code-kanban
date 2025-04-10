@@ -3,16 +3,25 @@
   import { getWebviewContext } from '../utils/vscodeMessaging';
   import type { Card as CardType } from '../types';
   import { log, error } from '../utils/vscodeMessaging';
+  import { createEventDispatcher } from 'svelte';
 
-  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard } = $props<{
+  // Define the ColumnData type
+  interface ColumnData {
+    id: string;
+    title: string;
+    cards: CardType[];
+  }
+
+  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard, onDeleteColumn } = $props<{
     id: string;
     title: string;
     cards?: CardType[];
     boardId: string;
-    onCardMoved: (data: { cardId: string, fromColumnId: string, toColumnId: string }) => void;
+    onCardMoved: (data: { cardId: string, fromColumnId: string, toColumnId: string, position: number }) => void;
     onCardUpdated: (card: CardType) => void;
     onCardDeleted: (cardId: string) => void;
     onAddCard: (columnId: string) => void;
+    onDeleteColumn?: (columnId: string) => void;
   }>();
 
   let cardsList = $state(cards);
@@ -21,7 +30,46 @@
   let dragOverIndex = $state(-1);
   let isCollapsed = $state(false);
   let isHovered = $state(false);
+  let isEditingTitle = $state(false);
+  let editedTitle = $state(title);
+  let isMenuOpen = $state(false);
   
+  // Watch for title prop changes
+  $effect(() => {
+    editedTitle = title;
+  });
+  
+  function startEditingTitle() {
+    editedTitle = title;
+    isEditingTitle = true;
+  }
+  
+  function saveColumnTitle() {
+    if (!editedTitle.trim()) {
+      log('Cannot save column: title is empty');
+      return;
+    }
+    
+    const updatedColumn = {
+      id,
+      title: editedTitle,
+      cards: cardsList
+    };
+    
+    log('Updating column title', { oldTitle: title, newTitle: editedTitle });
+    isEditingTitle = false;
+    
+    // Optimistically update local state
+    cardsList = [...cardsList];
+    
+    // Forward to parent component
+    dispatch('updateColumn', { column: updatedColumn });
+  }
+
+  const dispatch = createEventDispatcher<{
+    updateColumn: { column: ColumnData };
+  }>();
+
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
     if (event.dataTransfer) {
@@ -68,8 +116,6 @@
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
-    isDraggingOver = false;
-    dragOverIndex = -1;
     
     if (event.dataTransfer) {
       try {
@@ -78,12 +124,27 @@
         const fromColumnId = cardData.fromColumnId;
         
         if (fromColumnId !== id) {
-          onCardMoved({ cardId, fromColumnId, toColumnId: id });        
+          // Determine the position for insertion based on drop position
+          const position = dragOverIndex >= 0 ? dragOverIndex : cardsList.length;
+          
+          log(`Dropping card ${cardId} at position ${position} in column ${id}`);
+          
+          // Pass position information to the card move handler
+          onCardMoved({ 
+            cardId, 
+            fromColumnId, 
+            toColumnId: id,
+            position 
+          });
         }
       } catch (error) {
         console.error('Error parsing drag data:', error);
       }
     }
+    
+    // Reset drag state
+    isDraggingOver = false;
+    dragOverIndex = -1;
   }
 
   function toggleCollapse() {
@@ -160,22 +221,103 @@
           {/if}
         </svg>
       </button>
-      <h3 class="text-sm font-medium text-[var(--vscode-foreground)]">{title}</h3>
+      
+      {#if isEditingTitle}
+        <form 
+          class="flex-1"
+          onsubmit={(e: Event) => {
+            e.preventDefault();
+            saveColumnTitle();
+            return false;
+          }}
+        >
+          <input 
+            type="text" 
+            bind:value={editedTitle}
+            class="w-full px-2 py-0.5 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+            autofocus
+            onblur={() => saveColumnTitle()}
+            onkeydown={(e: KeyboardEvent) => {
+              if (e.key === 'Escape') {
+                isEditingTitle = false;
+                editedTitle = title;
+              }
+            }}
+          />
+        </form>
+      {:else}
+        <h3 
+          class="text-sm font-medium text-[var(--vscode-foreground)] cursor-pointer hover:text-[var(--vscode-textLink-foreground)]"
+          onclick={startEditingTitle}
+          title="Click to edit column title"
+        >{title}</h3>
+      {/if}
+      
       <span class="text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] px-1.5 py-0.5 rounded-sm">
         {cards.length}
       </span>
     </div>
-    <button 
-      onclick={() => onAddCard(id)}
-      class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-      title="Add card"
-      aria-label="Add card to column"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-    </button>
+    <div class="flex">
+      <button 
+        onclick={() => onAddCard(id)}
+        class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        title="Add card"
+        aria-label="Add card to column"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+      
+      <div class="relative ml-1">
+        <button 
+          onclick={() => isMenuOpen = !isMenuOpen}
+          class="w-5 h-5 flex items-center justify-center text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+          title="More options"
+          aria-label="Column options"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1"></circle>
+            <circle cx="12" cy="5" r="1"></circle>
+            <circle cx="12" cy="19" r="1"></circle>
+          </svg>
+        </button>
+        
+        {#if isMenuOpen}
+          <div class="absolute right-0 mt-1 w-48 bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-dropdown-border)] shadow-lg rounded-sm z-10">
+            <ul>
+              <li>
+                <button 
+                  class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-dropdown-foreground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
+                  onclick={() => {
+                    startEditingTitle();
+                    isMenuOpen = false;
+                  }}
+                >
+                  Edit column title
+                </button>
+              </li>
+              {#if onDeleteColumn}
+                <li>
+                  <button 
+                    class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-errorForeground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
+                    onclick={() => {
+                      if (confirm('Are you sure you want to delete this column and all its cards?')) {
+                        onDeleteColumn(id);
+                      }
+                      isMenuOpen = false;
+                    }}
+                  >
+                    Delete column
+                  </button>
+                </li>
+              {/if}
+            </ul>
+          </div>
+        {/if}
+      </div>
+    </div>
   </div>
   
   {#if !isCollapsed}
@@ -187,6 +329,20 @@
           <Card 
             {...card} 
             columnId={id}
+            on:update={(event) => {
+              const updatedCard = event.detail.card;
+              log('Card update event received in column', updatedCard);
+              // Update local state
+              cardsList = cardsList.map((c: CardType) => c.id === updatedCard.id ? updatedCard : c);
+              // Notify board component
+              onCardUpdated(updatedCard);
+            }}
+            on:delete={(event) => {
+              const cardId = event.detail.cardId;
+              log('Card delete event received in column', cardId);
+              cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
+              onCardDeleted(cardId);
+            }}
           />
         </div>
       {/each}

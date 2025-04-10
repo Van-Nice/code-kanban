@@ -72,12 +72,49 @@ export function sendMessage(message: VSCodeMessage) {
   // Special handling for updateCard - critical persistence operation
   if (message.command === "updateCard") {
     console.log(
-      "updateCard specific debug - message data:",
+      "🔴 DIRECT SEND: updateCard message data:",
       JSON.stringify(message.data, null, 2)
     );
 
-    // Use a more aggressive approach for updateCard
-    sendMessageWithRetry(message, 3);
+    // Use direct approach for updateCard instead of retry mechanism
+    // Initialize vscodeApi if needed
+    if (!vscodeApi) {
+      console.log(
+        "🔴 DIRECT SEND: vscodeApi not initialized, initializing now for updateCard"
+      );
+      vscodeApi = initializeVSCodeApi();
+    }
+
+    if (!vscodeApi) {
+      console.error(
+        "🔴 CRITICAL ERROR: Cannot send updateCard - vscodeApi unavailable"
+      );
+      return;
+    }
+
+    try {
+      console.log("🔴 DIRECT SEND: Sending updateCard message to extension");
+      // Add a timestamp to track when the message was sent
+      const sendTime = new Date().toISOString();
+      console.log(`🔴 DIRECT SEND: Timestamp ${sendTime}`);
+
+      // Send the message
+      vscodeApi.postMessage(message);
+      console.log("🔴 DIRECT SEND: updateCard message sent successfully");
+
+      // Log the message details again after sending
+      console.log("🔴 DIRECT SEND: Message sent with card details:");
+      console.log(`- Card ID: ${message.data?.card?.id}`);
+      console.log(`- Card Title: "${message.data?.card?.title}"`);
+      console.log(`- Column ID: ${message.data?.columnId}`);
+      console.log(`- Board ID: ${message.data?.boardId}`);
+    } catch (error) {
+      console.error(
+        "🔴 CRITICAL ERROR: Failed to send updateCard message:",
+        error
+      );
+    }
+
     return;
   }
 
@@ -125,66 +162,6 @@ export function sendMessage(message: VSCodeMessage) {
   }
 }
 
-// Retry mechanism for critical messages
-function sendMessageWithRetry(
-  message: VSCodeMessage,
-  maxRetries: number,
-  currentRetry = 0
-) {
-  // Initialize if needed
-  if (!vscodeApi) {
-    vscodeApi = initializeVSCodeApi();
-  }
-
-  // If still no vscodeApi, try one last emergency initialization
-  if (!vscodeApi && currentRetry === maxRetries - 1) {
-    try {
-      // @ts-ignore
-      vscodeApi = acquireVsCodeApi();
-    } catch (e) {
-      console.error("Emergency vscodeApi acquisition failed:", e);
-    }
-  }
-
-  if (!vscodeApi) {
-    console.error("Cannot send message, no vscodeApi available");
-    if (currentRetry < maxRetries) {
-      console.log(
-        `Retry attempt ${currentRetry + 1}/${maxRetries} in 500ms...`
-      );
-      setTimeout(
-        () => sendMessageWithRetry(message, maxRetries, currentRetry + 1),
-        500
-      );
-    }
-    return;
-  }
-
-  try {
-    vscodeApi.postMessage(message);
-    console.log(
-      `Message with command '${message.command}' sent successfully on attempt ${
-        currentRetry + 1
-      }`
-    );
-  } catch (error) {
-    console.error(
-      `Error sending message on attempt ${currentRetry + 1}:`,
-      error
-    );
-
-    if (currentRetry < maxRetries) {
-      console.log(
-        `Retry attempt ${currentRetry + 1}/${maxRetries} in 500ms...`
-      );
-      setTimeout(
-        () => sendMessageWithRetry(message, maxRetries, currentRetry + 1),
-        500
-      );
-    }
-  }
-}
-
 // Set up a message listener
 export function setupMessageListener(
   callback: (message: VSCodeMessage) => void
@@ -222,6 +199,10 @@ export function removeMessageListener(
 
 // Logging utilities
 export function log(message: string, data?: any) {
+  // Add timestamp for debugging
+  const timestamp = new Date().toISOString();
+  const formattedMessage = `[${timestamp}] ${message}`;
+
   // Safely stringify data to avoid circular references
   let safeData = undefined;
   if (data !== undefined) {
@@ -245,13 +226,20 @@ export function log(message: string, data?: any) {
     }
   }
 
+  // Log to console as well for easier debugging in the devtools
+  console.log(formattedMessage, safeData);
+
   sendMessage({
     command: "log",
-    data: { message, data: safeData },
+    data: { message: formattedMessage, data: safeData },
   });
 }
 
 export function error(message: string, err?: any) {
+  // Add timestamp for debugging
+  const timestamp = new Date().toISOString();
+  const formattedMessage = `[${timestamp}] ERROR: ${message}`;
+
   // Convert error to a safe object
   let safeError = undefined;
   if (err !== undefined) {
@@ -286,8 +274,11 @@ export function error(message: string, err?: any) {
     }
   }
 
+  // Log to console as well for easier debugging in the devtools
+  console.error(formattedMessage, safeError);
+
   sendMessage({
     command: "error",
-    data: { message, error: safeError },
+    data: { message: formattedMessage, error: safeError },
   });
 }
