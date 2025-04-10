@@ -96,7 +96,36 @@
       case 'boardLoaded':
         if (message.data.success) {
           log('Board loaded', message.data);
-          columns = message.data.columns;
+          
+          // Ensure all columns have UUID IDs instead of titles
+          let columnsUpdated = false;
+          columns = message.data.columns.map((col: ColumnData) => {
+            // Check if ID is not a UUID (likely a title being used as ID)
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(col.id)) {
+              log(`Converting non-UUID column ID: ${col.id} to UUID`);
+              columnsUpdated = true;
+              const newColumnId = uuidv4();
+              return {
+                ...col,
+                id: newColumnId, // Generate proper UUID
+                cards: col.cards.map((card: Card) => ({
+                  ...card,
+                  columnId: newColumnId // Use the same new column ID for all cards
+                }))
+              };
+            }
+            return col;
+          });
+          
+          // If we updated any columns, save the changes back to the backend
+          if (columnsUpdated) {
+            log('Saving updated column IDs to backend');
+            // Send updated board state to extension
+            sendMessage({
+              command: 'updateBoard',
+              data: { boardId, columns }
+            });
+          }
           
           // Log the loaded columns to verify card states
           log('Loaded columns with cards', columns.map(col => ({
@@ -241,6 +270,20 @@
           error('Column delete failed', message.data.error);
           // Restore from snapshot
           restoreFromSnapshot('deleteColumn');
+        }
+        break;
+      case 'boardUpdated':
+        if (message.data.success) {
+          log('Board updated successfully', message.data.board);
+          if (message.data.board) {
+            // Don't update columns here to avoid overriding current UI state
+            // This confirms the server received our changes
+            log('Server confirmed board update');
+          }
+        } else if (message.data.error) {
+          error('Board update failed', message.data.error);
+          // Refresh to get latest from server
+          requestBoardData();
         }
         break;
       default:
@@ -558,21 +601,31 @@
   }
 </script>
 
+<!-- Root container with adaptive styling based on context -->
+<!-- The h-full class makes the container take full height of its parent -->
+<!-- sidebar-context class is conditionally added to apply different styles when displayed in the sidebar -->
 <div class="h-full {webviewContext === 'sidebar' ? 'sidebar-context' : ''}">
   {#if isLoading}
+    <!-- Loading state: displays a centered spinner while board data is being fetched -->
     <div class="flex items-center justify-center h-full">
       <div class="flex flex-col items-center gap-2">
+        <!-- Custom loading spinner using border trick and VS Code's progress bar color -->
         <div class="w-6 h-6 border-2 border-t-[var(--vscode-progressBar-background)] border-r-[var(--vscode-progressBar-background)] border-b-[var(--vscode-progressBar-background)] border-l-transparent rounded-full animate-spin"></div>
+        <!-- Loading text with VS Code's description text color -->
         <span class="text-sm text-[var(--vscode-descriptionForeground)]">Loading board...</span>
       </div>
     </div>
   {:else}
+    <!-- Board header: contains board title and "Add Column" button -->
     <div class="mb-4 flex justify-between items-center">
+      <!-- Board title using VS Code's standard foreground color -->
       <h2 class="text-lg font-medium text-[var(--vscode-foreground)]">{boardTitle}</h2>
+      <!-- "Add Column" button styled with VS Code's button colors -->
       <button
         onclick={addColumn}
         class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] flex items-center gap-1"
       >
+        <!-- Plus icon inside a square (using SVG) -->
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           <line x1="12" y1="8" x2="12" y2="16"></line>
@@ -583,10 +636,15 @@
     </div>
     
     {#if webviewContext === 'sidebar'}
-      <!-- Sidebar layout: columns stacked vertically -->
+      <!-- Sidebar layout: columns arranged vertically (stacked) -->
+      <!-- This layout is optimized for the narrower width of VS Code's sidebar -->
       <div class="flex flex-col gap-4 min-h-screen">
+        <!-- Loop through each column and render it vertically -->
         {#each columns as column (column.id)}
+          <!-- Each column takes full width in sidebar mode -->
           <div class="flex-shrink-0 w-full">
+            <!-- Render the Column component with all required props -->
+            <!-- Pass callback functions for various card and column operations -->
             <Column
               id={column.id}
               title={column.title}
@@ -603,10 +661,14 @@
         {/each}
       </div>
     {:else}
-      <!-- Editor layout: columns side by side -->
+      <!-- Editor layout: columns arranged horizontally (side by side) -->
+      <!-- This is the standard Kanban layout for wider views -->
       <div class="flex gap-4 min-h-screen overflow-x-auto pb-4">
+        <!-- Loop through each column and render it horizontally -->
         {#each columns as column (column.id)}
+          <!-- Each column has fixed width (w-72 = 18rem) and doesn't shrink -->
           <div class="flex-shrink-0 w-72">
+            <!-- Render the Column component with all required props -->
             <Column
               id={column.id}
               title={column.title}
@@ -622,12 +684,14 @@
           </div>
         {/each}
         
-        <!-- Add column placeholder -->
+        <!-- Add column placeholder - displayed at the end of the columns -->
+        <!-- Provides a visual cue for adding a new column with dashed border -->
         <div class="flex-shrink-0 w-72 border border-dashed border-[var(--vscode-panel-border)] rounded-sm h-full flex items-center justify-center">
           <button
             onclick={addColumn}
             class="flex flex-col items-center justify-center p-4 w-full h-full text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] transition-colors rounded-sm"
           >
+            <!-- Plus icon (SVG) -->
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -638,14 +702,19 @@
       </div>
     {/if}
     
+    <!-- Empty state - displayed when there are no columns -->
+    <!-- Provides a user-friendly message and call-to-action -->
     {#if columns.length === 0}
       <div class="flex flex-col items-center justify-center h-64 border border-dashed border-[var(--vscode-panel-border)] rounded-sm p-6">
+        <!-- Plus icon in a square (SVG) -->
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--vscode-descriptionForeground)]">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           <line x1="12" y1="8" x2="12" y2="16"></line>
           <line x1="8" y1="12" x2="16" y2="12"></line>
         </svg>
+        <!-- Empty state message -->
         <p class="mt-4 text-[var(--vscode-descriptionForeground)] text-sm">No columns found. Add a column to get started.</p>
+        <!-- "Add Column" button -->
         <button
           onclick={addColumn}
           class="mt-4 px-3 py-1.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
@@ -656,17 +725,22 @@
     {/if}
   {/if}
 
-  <!-- Card Creation Modal -->
+  <!-- Card Creation Modal - displayed when isCreatingCard is true -->
+  <!-- Implemented as a fixed overlay covering the entire viewport -->
   {#if isCreatingCard}
     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <!-- Modal dialog box -->
       <div class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-sm p-4 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <!-- Modal header with title and close button -->
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-sm font-medium text-[var(--vscode-foreground)]">Create New Card</h2>
+          <!-- Close button (X) -->
           <button
             onclick={cancelCardCreation}
             class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)]"
             aria-label="Close"
           >
+            <!-- X icon (SVG) -->
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -674,6 +748,8 @@
           </button>
         </div>
         
+        <!-- Card creation form -->
+        <!-- Prevents default form submission and calls createCard function instead -->
         <form
           onsubmit={(e: Event) => {
             e.preventDefault();
@@ -681,9 +757,10 @@
           }}
           class="space-y-3"
         >
+          <!-- Card title input field (required) -->
           <div>
             <label for="card-title" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Title *</label>
-            <!-- svelte-ignore a11y_autofocus -->
+            <!-- svelte-ignore a11y_autofocus - ignores accessibility warning about autofocus -->
             <input
               type="text"
               id="card-title"
@@ -694,6 +771,7 @@
             />
           </div>
           
+          <!-- Card description textarea -->
           <div>
             <label for="card-description" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Description</label>
             <textarea
@@ -705,6 +783,7 @@
             ></textarea>
           </div>
           
+          <!-- Card assignee input field -->
           <div>
             <label for="card-assignee" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Assignee</label>
             <input
@@ -716,18 +795,22 @@
             />
           </div>
           
+          <!-- Labels section with existing labels display and new label input -->
           <div>
             <label for="new-label" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Labels</label>
+            <!-- Display existing labels as badges with remove buttons -->
             <div class="flex flex-wrap gap-1 mb-2">
               {#each newCardLabels as label}
                 <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)]">
                   {label}
+                  <!-- Remove label button (X) -->
                   <button
                     type="button"
                     onclick={() => removeLabel(label)}
                     class="ml-1 text-[var(--vscode-badge-foreground)] hover:text-[var(--vscode-errorForeground)]"
                     aria-label="Remove label {label}"
                   >
+                    <!-- X icon (SVG) -->
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -736,7 +819,9 @@
                 </span>
               {/each}
             </div>
+            <!-- Input group for adding new labels -->
             <div class="flex gap-1">
+              <!-- New label input with Enter key support -->
               <input
                 type="text"
                 id="new-label"
@@ -745,11 +830,12 @@
                 placeholder="Add label..."
                 onkeydown={(e: KeyboardEvent) => {
                   if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addLabel();
+                    e.preventDefault(); // Prevent form submission
+                    addLabel(); // Call addLabel function instead
                   }
                 }}
               />
+              <!-- Add label button -->
               <button
                 type="button"
                 onclick={addLabel}
@@ -760,7 +846,9 @@
             </div>
           </div>
           
+          <!-- Form action buttons (Cancel and Create) -->
           <div class="flex justify-end gap-2 pt-2">
+            <!-- Cancel button - styled as secondary button -->
             <button
               type="button"
               onclick={cancelCardCreation}
@@ -768,6 +856,7 @@
             >
               Cancel
             </button>
+            <!-- Create button (submit) - styled as primary button -->
             <button
               type="submit"
               class="px-2 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"

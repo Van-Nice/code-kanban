@@ -111,6 +111,14 @@ export interface DeleteColumnMessage extends WebviewMessageBase {
   };
 }
 
+export interface UpdateBoardMessage extends WebviewMessageBase {
+  command: "updateBoard";
+  data: {
+    boardId: string;
+    columns: Column[];
+  };
+}
+
 export type WebviewMessage =
   | LogMessage
   | ErrorMessage
@@ -118,6 +126,7 @@ export type WebviewMessage =
   | GetBoardMessage
   | CreateBoardMessage
   | DeleteBoardMessage
+  | UpdateBoardMessage
   | AddCardMessage
   | UpdateCardMessage
   | DeleteCardMessage
@@ -170,8 +179,17 @@ export interface BoardDeletedResponse extends ResponseMessageBase {
   command: "boardDeleted";
   data: {
     success: boolean;
-    boardId?: string;
     error?: string;
+    boardId?: string;
+  };
+}
+
+export interface BoardResponse extends ResponseMessageBase {
+  command: "boardUpdated";
+  data: {
+    success: boolean;
+    error?: string;
+    board?: Board;
   };
 }
 
@@ -232,6 +250,7 @@ export type ResponseMessage =
   | BoardLoadedResponse
   | BoardCreatedResponse
   | BoardDeletedResponse
+  | BoardResponse
   | CardResponse
   | CardDeletedResponse
   | CardMovedResponse

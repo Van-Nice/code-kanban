@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { OpenBoardInEditorMessage } from "./messages";
-import { HandlerContext } from "./message-handler";
+import { OpenBoardInEditorMessage } from "../messages";
+import { HandlerContext } from "../message-handler";
 
 export async function handleOpenBoardInEditor(
   message: OpenBoardInEditorMessage,

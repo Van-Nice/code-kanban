@@ -24,6 +24,7 @@ const handlerMap: { [command: string]: HandlerFunction<any> } = {
   getBoard: handlers.handleGetBoard,
   createBoard: handlers.handleCreateBoard,
   deleteBoard: handlers.handleDeleteBoard,
+  updateBoard: handlers.handleUpdateBoard,
   addCard: handlers.handleAddCard,
   updateCard: handlers.handleUpdateCard,
   deleteCard: handlers.handleDeleteCard,

@@ -2,6 +2,7 @@ import { CreateBoardMessage, BoardCreatedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
 import { Board } from "../types";
 import { sanitizeString } from "../utils";
+import { v4 as uuidv4 } from "uuid";
 
 export async function handleCreateBoard(
   message: CreateBoardMessage,
@@ -31,9 +32,9 @@ export async function handleCreateBoard(
     title: sanitizedTitle,
     description: sanitizedDescription,
     columns: [
-      { id: "todo", title: "To Do", cards: [] },
-      { id: "in-progress", title: "In Progress", cards: [] },
-      { id: "done", title: "Done", cards: [] },
+      { id: uuidv4(), title: "To Do", cards: [] },
+      { id: uuidv4(), title: "In Progress", cards: [] },
+      { id: uuidv4(), title: "Done", cards: [] },
     ],
   };
 

@@ -1,6 +1,6 @@
-import { UpdateColumnMessage, ColumnResponse } from "./messages";
-import { HandlerContext } from "./message-handler";
-import { sanitizeString } from "./utils";
+import { UpdateColumnMessage, ColumnResponse } from "../messages";
+import { HandlerContext } from "../message-handler";
+import { sanitizeString } from "../utils";
 
 export async function handleUpdateColumn(
   message: UpdateColumnMessage,

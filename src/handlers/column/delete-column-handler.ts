@@ -1,5 +1,5 @@
-import { DeleteColumnMessage, ColumnDeletedResponse } from "./messages";
-import { HandlerContext } from "./message-handler";
+import { DeleteColumnMessage, ColumnDeletedResponse } from "../messages";
+import { HandlerContext } from "../message-handler";
 
 export async function handleDeleteColumn(
   message: DeleteColumnMessage,

@@ -19,8 +19,8 @@ export interface Card {
   description: string;
   labels: string[];
   assignee: string;
-  columnId?: string;
-  boardId?: string;
+  columnId: string;
+  boardId: string;
   order?: number;
   createdAt?: string;
   updatedAt?: string;
