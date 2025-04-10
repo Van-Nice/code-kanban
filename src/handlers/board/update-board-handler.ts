@@ -20,7 +20,7 @@ export async function handleUpdateBoard(
 
   try {
     // Get boards and find the target board
-    const boards = storage.getBoards();
+    const boards = await storage.getBoards();
     const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
 
     if (boardIndex === -1) {
@@ -41,8 +41,8 @@ export async function handleUpdateBoard(
     // Update the board's timestamp
     board.updatedAt = new Date().toISOString();
 
-    // Save the updated boards
-    await storage.saveBoards(boards);
+    // Save the updated board
+    await storage.saveBoard(board);
 
     logger.debug(`Board ${message.data.boardId} updated with new columns`);
     return {

@@ -23,11 +23,10 @@ export async function handleDeleteCard(
   }
 
   try {
-    // Get boards and find the target board
-    const boards = storage.getBoards();
-    const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
+    const boards = await storage.getBoards();
+    const board = boards.find((b) => b.id === message.data.boardId);
 
-    if (boardIndex === -1) {
+    if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "cardDeleted",
@@ -38,62 +37,33 @@ export async function handleDeleteCard(
       };
     }
 
-    // Find the target column
-    const board = boards[boardIndex];
-    const columnIndex = board.columns.findIndex(
-      (c) => c.id === message.data.columnId
-    );
-
-    if (columnIndex === -1) {
-      logger.error(
-        `Column with ID ${message.data.columnId} not found in board ${message.data.boardId}`
+    // Find and remove the card
+    for (const column of board.columns) {
+      const cardIndex = column.cards.findIndex(
+        (c) => c.id === message.data.cardId
       );
-      return {
-        command: "cardDeleted",
-        data: {
-          success: false,
-          error: `Column with ID ${message.data.columnId} not found`,
-        },
-      };
+      if (cardIndex !== -1) {
+        column.cards.splice(cardIndex, 1);
+        await storage.saveBoard(board);
+        logger.debug(
+          `Card with ID ${message.data.cardId} deleted successfully`
+        );
+        return {
+          command: "cardDeleted",
+          data: {
+            success: true,
+            cardId: message.data.cardId,
+          },
+        };
+      }
     }
 
-    // Find the card to delete
-    const column = board.columns[columnIndex];
-    const cardIndex = column.cards.findIndex(
-      (c) => c.id === message.data.cardId
-    );
-
-    if (cardIndex === -1) {
-      logger.error(
-        `Card with ID ${message.data.cardId} not found in column ${message.data.columnId}`
-      );
-      return {
-        command: "cardDeleted",
-        data: {
-          success: false,
-          error: `Card with ID ${message.data.cardId} not found`,
-        },
-      };
-    }
-
-    // Remove the card
-    column.cards.splice(cardIndex, 1);
-
-    // Update the board's timestamp
-    board.updatedAt = new Date().toISOString();
-
-    // Save the updated boards
-    await storage.saveBoards(boards);
-
-    logger.debug(
-      `Card ${message.data.cardId} deleted from column ${message.data.columnId}`
-    );
+    logger.error(`Card with ID ${message.data.cardId} not found`);
     return {
       command: "cardDeleted",
       data: {
-        success: true,
-        cardId: message.data.cardId,
-        columnId: message.data.columnId,
+        success: false,
+        error: `Card with ID ${message.data.cardId} not found`,
       },
     };
   } catch (error) {

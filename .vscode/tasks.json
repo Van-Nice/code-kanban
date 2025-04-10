@@ -35,11 +35,11 @@
     },
     {
       "type": "npm",
-      "script": "compile-all",
+      "script": "compile",
       "group": "build",
-      "problemMatcher": [],
-      "label": "npm: compile-all",
-      "detail": "npm run build --prefix webview && npm run compile"
+      "problemMatcher": "$tsc",
+      "label": "npm: compile",
+      "detail": "Compile TypeScript to dist directory"
     },
     {
       "label": "build-webview",

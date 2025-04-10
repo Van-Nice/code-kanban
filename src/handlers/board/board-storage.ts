@@ -1,61 +1,81 @@
 import * as vscode from "vscode";
-import { Board } from "../types";
+import type {
+  Board,
+  Column,
+  Card,
+  StorageData,
+  BoardMetadata,
+  ColumnData,
+  CardData,
+} from "../../shared/types";
+import {
+  STORAGE_KEYS,
+  CURRENT_STORAGE_VERSION,
+  isBoardMetadata,
+  isColumnData,
+  isCardData,
+} from "../../shared/types";
+import { migrateData } from "../../shared/migrations";
 
 export class BoardStorage {
   private context: vscode.ExtensionContext;
-  private storageKey: string = "boogie.boards";
   private saveInProgress: boolean = false;
   private saveQueue: Array<{
-    boards: Board[];
+    data: StorageData;
     resolve: (value: void | PromiseLike<void>) => void;
     reject: (reason?: any) => void;
   }> = [];
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
+    this.initializeStorage();
   }
 
-  public getBoards(): Board[] {
-    try {
-      // Try to get the data from storage
-      const rawData = this.context.globalState.get<string | Board[]>(
-        this.storageKey
+  private async initializeStorage() {
+    const version = this.context.globalState.get<string>(STORAGE_KEYS.VERSION);
+    if (!version) {
+      // First time setup
+      await this.context.globalState.update(
+        STORAGE_KEYS.VERSION,
+        CURRENT_STORAGE_VERSION
       );
-
-      // If it's a string (JSON), parse it
-      if (typeof rawData === "string") {
-        try {
-          return JSON.parse(rawData);
-        } catch (e) {
-          console.error("ERROR - Failed to parse boards JSON:", e);
-          return [];
-        }
-      }
-
-      // If it's an array (direct object storage), return it
-      if (Array.isArray(rawData)) {
-        return rawData;
-      }
-
-      // If it's null or undefined, return empty array
-      return [];
-    } catch (error) {
-      console.error("ERROR - Failed to get boards from storage:", error);
-      return [];
+      await this.saveData({
+        boards: new Map(),
+        columns: new Map(),
+        cards: new Map(),
+      });
+    } else if (version !== CURRENT_STORAGE_VERSION) {
+      // Migrate data to current version
+      const data = await this.loadRawData();
+      const migratedData = await migrateData(version, data);
+      await this.saveData(migratedData);
+      await this.context.globalState.update(
+        STORAGE_KEYS.VERSION,
+        CURRENT_STORAGE_VERSION
+      );
     }
   }
 
-  public async saveBoards(boards: Board[]): Promise<void> {
-    // Return a promise that will be resolved when the save is complete
-    return new Promise((resolve, reject) => {
-      // Add this save request to the queue
-      this.saveQueue.push({ boards, resolve, reject });
+  private async loadRawData(): Promise<any> {
+    const rawBoards =
+      this.context.globalState.get<BoardMetadata[]>(STORAGE_KEYS.BOARDS) || [];
+    const rawColumns =
+      this.context.globalState.get<ColumnData[]>(STORAGE_KEYS.COLUMNS) || [];
+    const rawCards =
+      this.context.globalState.get<CardData[]>(STORAGE_KEYS.CARDS) || [];
 
-      // If no save is in progress, start processing the queue
+    return {
+      boards: new Map(rawBoards.map((board) => [board.id, board])),
+      columns: new Map(rawColumns.map((column) => [column.id, column])),
+      cards: new Map(rawCards.map((card) => [card.id, card])),
+    };
+  }
+
+  private async saveData(data: StorageData): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.saveQueue.push({ data, resolve, reject });
       if (!this.saveInProgress) {
         this.processSaveQueue();
-      } else {
-        console.log("SAVE DEBUG - Save already in progress, request queued");
       }
     });
   }
@@ -66,166 +86,324 @@ export class BoardStorage {
     }
 
     this.saveInProgress = true;
-    const { boards, resolve, reject } = this.saveQueue.shift()!;
-
-    console.log(
-      `SAVE DEBUG - Processing queued save request (${this.saveQueue.length} more in queue)`
-    );
-    console.log(`SAVE DEBUG - Attempting to save ${boards.length} boards`);
+    const { data, resolve, reject } = this.saveQueue.shift()!;
 
     try {
-      if (!boards) {
-        throw new Error("Cannot save null or undefined boards");
-      }
+      // Validate data before saving
+      this.validateStorageData(data);
 
-      // Create a deep copy to avoid any reference issues
-      const boardsCopy = JSON.parse(JSON.stringify(boards));
+      // Convert Maps to arrays for storage
+      const storageData = {
+        boards: Array.from(data.boards.values()),
+        columns: Array.from(data.columns.values()),
+        cards: Array.from(data.cards.values()),
+      };
 
-      // Log detailed card information before saving
-      for (const board of boardsCopy) {
-        console.log(
-          `SAVE DEBUG - Board ${board.id} (${board.title}) before save:`
-        );
-        for (const column of board.columns) {
-          console.log(
-            `SAVE DEBUG - Column ${column.id} (${column.title}) has ${column.cards.length} cards`
-          );
-          if (column.cards.length > 0) {
-            console.log(
-              `SAVE DEBUG - First few cards in column ${column.id}:`,
-              column.cards.slice(0, 3).map((c: any) => ({
-                id: c.id,
-                title: c.title,
-                columnId: c.columnId,
-              }))
-            );
-          }
-        }
-      }
-
-      // Stringify the boards to ensure clean serialization
-      const stringifiedBoards = JSON.stringify(boardsCopy);
-      console.log(
-        `SAVE DEBUG - Stringified boards size: ${stringifiedBoards.length} bytes`
+      // Save each part separately
+      await this.context.globalState.update(
+        STORAGE_KEYS.BOARDS,
+        storageData.boards
+      );
+      await this.context.globalState.update(
+        STORAGE_KEYS.COLUMNS,
+        storageData.columns
+      );
+      await this.context.globalState.update(
+        STORAGE_KEYS.CARDS,
+        storageData.cards
       );
 
-      // Perform the actual save using the string version
-      await this.saveWithRetry(stringifiedBoards, 3);
-
-      // Wait a moment to ensure data is written
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // Verify the save was successful with a fresh read
-      const savedBoards = this.getBoards();
-      if (!savedBoards) {
-        throw new Error("Failed to verify boards were saved - returned null");
-      }
-      if (savedBoards.length !== boardsCopy.length) {
-        throw new Error(
-          `Save verification failed - expected ${boardsCopy.length} boards but got ${savedBoards.length}`
-        );
-      }
-
-      // Detailed verification of saved content
-      for (const board of savedBoards) {
-        console.log(
-          `SAVE DEBUG - Verifying board ${board.id} (${board.title}) after save:`
-        );
-        const originalBoard = boardsCopy.find((b: Board) => b.id === board.id);
-        if (!originalBoard) {
-          console.error(
-            `SAVE DEBUG - Original board ${board.id} not found in saved data!`
-          );
-          continue;
-        }
-
-        let totalCards = 0;
-        for (const column of board.columns) {
-          const originalColumn = originalBoard.columns.find(
-            (c: { id: string }) => c.id === column.id
-          );
-          if (!originalColumn) {
-            console.error(
-              `SAVE DEBUG - Original column ${column.id} not found in saved data!`
-            );
-            continue;
-          }
-
-          console.log(
-            `SAVE DEBUG - Column ${column.id} (${column.title}) has ${column.cards.length} cards after save ` +
-              `(expected ${originalColumn.cards.length})`
-          );
-
-          if (column.cards.length !== originalColumn.cards.length) {
-            console.error(
-              `SAVE DEBUG - Card count mismatch in column ${column.id}!`
-            );
-          }
-
-          totalCards += column.cards.length;
-
-          // Log the first few cards for verification
-          if (column.cards.length > 0) {
-            console.log(
-              `SAVE DEBUG - First few cards in column ${column.id} after save:`,
-              column.cards.slice(0, 3).map((c: any) => ({
-                id: c.id,
-                title: c.title,
-                columnId: c.columnId,
-              }))
-            );
-          }
-        }
-
-        console.log(
-          `SAVE DEBUG - Board ${board.id} has total ${totalCards} cards after save`
-        );
-      }
-
-      console.log(
-        `SAVE DEBUG - Successfully saved and verified ${boardsCopy.length} boards`
-      );
       resolve();
     } catch (error) {
-      console.error("CRITICAL ERROR - Failed to save boards:", error);
-      reject(
-        new Error(
-          `Failed to save boards: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        )
-      );
+      reject(error);
     } finally {
       this.saveInProgress = false;
-
-      // Process next save request in queue if any
       if (this.saveQueue.length > 0) {
         this.processSaveQueue();
       }
     }
   }
 
-  // Helper method to retry save operations
-  private async saveWithRetry(data: string, maxRetries: number): Promise<void> {
-    let lastError: any = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`SAVE DEBUG - Save attempt ${attempt}/${maxRetries}`);
-        await this.context.globalState.update(this.storageKey, data);
-        console.log(`SAVE DEBUG - Save attempt ${attempt} successful`);
-        return; // Success, exit the function
-      } catch (error) {
-        lastError = error;
-        console.error(`SAVE DEBUG - Save attempt ${attempt} failed:`, error);
-        // Wait longer between each retry
-        await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+  private validateStorageData(data: StorageData): void {
+    // Validate boards
+    for (const [id, board] of data.boards) {
+      if (!isBoardMetadata(board)) {
+        throw new Error(`Invalid board metadata for board ${id}`);
       }
     }
 
-    // If we reach this point, all retries failed
-    throw new Error(
-      `All ${maxRetries} save attempts failed. Last error: ${lastError}`
+    // Validate columns
+    for (const [id, column] of data.columns) {
+      if (!isColumnData(column)) {
+        throw new Error(`Invalid column data for column ${id}`);
+      }
+      // Validate column references
+      if (!data.boards.has(column.boardId)) {
+        throw new Error(
+          `Column ${id} references non-existent board ${column.boardId}`
+        );
+      }
+    }
+
+    // Validate cards
+    for (const [id, card] of data.cards) {
+      if (!isCardData(card)) {
+        throw new Error(`Invalid card data for card ${id}`);
+      }
+      // Validate card references
+      if (!data.columns.has(card.columnId)) {
+        throw new Error(
+          `Card ${id} references non-existent column ${card.columnId}`
+        );
+      }
+      const column = data.columns.get(card.columnId);
+      if (column && !column.cardIds.includes(id)) {
+        throw new Error(
+          `Card ${id} exists but is not referenced by its column ${card.columnId}`
+        );
+      }
+    }
+
+    // Validate board column references
+    for (const [id, board] of data.boards) {
+      for (const columnId of board.columnIds) {
+        const column = data.columns.get(columnId);
+        if (!column) {
+          throw new Error(
+            `Board ${id} references non-existent column ${columnId}`
+          );
+        }
+        if (column.boardId !== id) {
+          throw new Error(
+            `Column ${columnId} belongs to board ${column.boardId} but is referenced by board ${id}`
+          );
+        }
+      }
+    }
+
+    // Validate column card references
+    for (const [id, column] of data.columns) {
+      for (const cardId of column.cardIds) {
+        const card = data.cards.get(cardId);
+        if (!card) {
+          throw new Error(
+            `Column ${id} references non-existent card ${cardId}`
+          );
+        }
+        if (card.columnId !== id) {
+          throw new Error(
+            `Card ${cardId} belongs to column ${card.columnId} but is referenced by column ${id}`
+          );
+        }
+      }
+    }
+  }
+
+  private getData(): StorageData {
+    const boards = new Map<string, BoardMetadata>();
+    const columns = new Map<string, ColumnData>();
+    const cards = new Map<string, CardData>();
+
+    try {
+      // Load boards
+      const boardData =
+        this.context.globalState.get<BoardMetadata[]>(STORAGE_KEYS.BOARDS) ||
+        [];
+      boardData.forEach((board) => {
+        if (isBoardMetadata(board)) {
+          boards.set(board.id, board);
+        }
+      });
+
+      // Load columns
+      const columnData =
+        this.context.globalState.get<ColumnData[]>(STORAGE_KEYS.COLUMNS) || [];
+      columnData.forEach((column) => {
+        if (isColumnData(column)) {
+          columns.set(column.id, column);
+        }
+      });
+
+      // Load cards
+      const cardData =
+        this.context.globalState.get<CardData[]>(STORAGE_KEYS.CARDS) || [];
+      cardData.forEach((card) => {
+        if (isCardData(card)) {
+          cards.set(card.id, card);
+        }
+      });
+    } catch (error) {
+      console.error("Error loading data:", error);
+    }
+
+    return { boards, columns, cards };
+  }
+
+  public async getBoards(): Promise<Board[]> {
+    const data = this.getData();
+    const boards: Board[] = [];
+
+    // Convert stored data into Board objects
+    for (const [boardId, boardData] of data.boards) {
+      const columns: Column[] = [];
+
+      // Get all columns for this board
+      for (const columnId of boardData.columnIds) {
+        const columnData = data.columns.get(columnId);
+        if (columnData) {
+          const cards: Card[] = [];
+
+          // Get all cards for this column
+          for (const cardId of columnData.cardIds) {
+            const cardData = data.cards.get(cardId);
+            if (cardData) {
+              cards.push({
+                id: cardId,
+                title: cardData.title,
+                description: cardData.description,
+                labels: cardData.labels,
+                assignee: cardData.assignee,
+                columnId: columnId,
+                boardId: boardId,
+                order: cardData.order,
+                createdAt: cardData.createdAt,
+                updatedAt: cardData.updatedAt,
+              });
+            }
+          }
+
+          // Sort cards by order
+          cards.sort((a, b) => a.order - b.order);
+
+          columns.push({
+            id: columnId,
+            title: columnData.title,
+            cards,
+            order: columnData.order,
+            createdAt: columnData.createdAt,
+            updatedAt: columnData.updatedAt,
+          });
+        }
+      }
+
+      // Sort columns by order
+      columns.sort((a, b) => a.order - b.order);
+
+      boards.push({
+        id: boardId,
+        title: boardData.title,
+        description: boardData.description,
+        columns,
+        createdAt: boardData.createdAt,
+        updatedAt: boardData.updatedAt,
+      });
+    }
+
+    return boards;
+  }
+
+  public async saveBoard(board: Board): Promise<void> {
+    const data = this.getData();
+
+    // Update board metadata
+    const boardMetadata: BoardMetadata = {
+      id: board.id,
+      title: board.title,
+      description: board.description,
+      columnIds: board.columns.map((col) => col.id),
+      createdAt: board.createdAt,
+      updatedAt: board.updatedAt,
+    };
+    data.boards.set(board.id, boardMetadata);
+
+    // Get the set of all card IDs in the board
+    const currentCardIds = new Set<string>();
+    for (const column of board.columns) {
+      for (const card of column.cards) {
+        currentCardIds.add(card.id);
+      }
+    }
+
+    // Clean up any cards that are no longer in any column
+    const existingCards = Array.from(data.cards.values()).filter(
+      (card) => card.boardId === board.id
     );
+    for (const card of existingCards) {
+      if (!currentCardIds.has(card.id)) {
+        data.cards.delete(card.id);
+      }
+    }
+
+    // Update columns
+    for (const column of board.columns) {
+      const columnData: ColumnData = {
+        id: column.id,
+        title: column.title,
+        boardId: board.id,
+        cardIds: column.cards.map((card) => card.id),
+        order: column.order,
+        createdAt: column.createdAt,
+        updatedAt: column.updatedAt,
+      };
+      data.columns.set(column.id, columnData);
+
+      // Update cards
+      for (const card of column.cards) {
+        const cardData: CardData = {
+          id: card.id,
+          title: card.title,
+          description: card.description,
+          labels: card.labels,
+          assignee: card.assignee,
+          columnId: column.id,
+          boardId: board.id,
+          order: card.order,
+          createdAt: card.createdAt,
+          updatedAt: card.updatedAt,
+        };
+        data.cards.set(card.id, cardData);
+      }
+    }
+
+    // Clean up any columns that were removed from this board
+    const existingBoard = data.boards.get(board.id);
+    if (existingBoard) {
+      const currentColumnIds = new Set(board.columns.map((col) => col.id));
+      const removedColumnIds = existingBoard.columnIds.filter(
+        (columnId) => !currentColumnIds.has(columnId)
+      );
+      removedColumnIds.forEach((columnId) => {
+        const column = data.columns.get(columnId);
+        if (column) {
+          column.cardIds.forEach((cardId) => data.cards.delete(cardId));
+          data.columns.delete(columnId);
+        }
+      });
+    }
+
+    await this.saveData(data);
+  }
+
+  public async deleteBoard(boardId: string): Promise<void> {
+    const { boards, columns, cards } = this.getData();
+
+    const board = boards.get(boardId);
+    if (!board) {
+      return;
+    }
+
+    // Delete all cards in the board's columns
+    board.columnIds.forEach((columnId) => {
+      const column = columns.get(columnId);
+      if (column) {
+        column.cardIds.forEach((cardId) => cards.delete(cardId));
+        columns.delete(columnId);
+      }
+    });
+
+    // Delete the board
+    boards.delete(boardId);
+
+    await this.saveData({ boards, columns, cards });
   }
 }

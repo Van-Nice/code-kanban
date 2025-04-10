@@ -2,23 +2,48 @@ import * as vscode from "vscode";
 import { ShowErrorMessageMessage } from "./messages";
 import { HandlerContext } from "./message-handler";
 
+interface ShowErrorMessageResponse {
+  command: "errorMessageShown";
+  data: {
+    success: boolean;
+    error?: string;
+  };
+}
+
 export async function handleShowErrorMessage(
   message: ShowErrorMessageMessage,
   context: HandlerContext
-): Promise<void> {
+): Promise<ShowErrorMessageResponse> {
   const { logger } = context;
 
   if (!message.data?.message) {
-    logger.error("Missing message content for showErrorMessage command");
-    return;
+    logger.error("Missing message for showErrorMessage command");
+    return {
+      command: "errorMessageShown",
+      data: {
+        success: false,
+        error: "Missing error message",
+      },
+    };
   }
 
   try {
-    // Display the error message to the user
-    logger.debug(`Showing error message: ${message.data.message}`);
     await vscode.window.showErrorMessage(message.data.message);
+    return {
+      command: "errorMessageShown",
+      data: {
+        success: true,
+      },
+    };
   } catch (error) {
     logger.error("Error showing error message:", error);
-    // Just log the error since we can't do much else with a failed message display
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      command: "errorMessageShown",
+      data: {
+        success: false,
+        error: errorMessage,
+      },
+    };
   }
 }

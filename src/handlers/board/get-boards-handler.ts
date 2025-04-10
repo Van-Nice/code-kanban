@@ -8,7 +8,7 @@ export async function handleGetBoards(
   const { storage, logger } = context;
 
   logger.debug("Getting all boards");
-  const boards = storage.getBoards();
+  const boards = await storage.getBoards();
   logger.debug(`Found ${boards.length} boards`);
 
   return {

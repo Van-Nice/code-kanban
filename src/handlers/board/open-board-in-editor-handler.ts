@@ -2,15 +2,29 @@ import * as vscode from "vscode";
 import { OpenBoardInEditorMessage } from "../messages";
 import { HandlerContext } from "../message-handler";
 
+interface OpenBoardInEditorResponse {
+  command: "boardOpenedInEditor";
+  data: {
+    success: boolean;
+    error?: string;
+  };
+}
+
 export async function handleOpenBoardInEditor(
   message: OpenBoardInEditorMessage,
   context: HandlerContext
-): Promise<void> {
+): Promise<OpenBoardInEditorResponse> {
   const { logger } = context;
 
   if (!message.data?.boardId) {
     logger.error("Missing boardId for openBoardInEditor command");
-    return;
+    return {
+      command: "boardOpenedInEditor",
+      data: {
+        success: false,
+        error: "Missing boardId",
+      },
+    };
   }
 
   try {
@@ -20,13 +34,24 @@ export async function handleOpenBoardInEditor(
       "boogie.openBoardInEditor",
       message.data.boardId
     );
+    return {
+      command: "boardOpenedInEditor",
+      data: {
+        success: true,
+      },
+    };
   } catch (error) {
     logger.error("Error opening board in editor:", error);
-    // Since this doesn't have a conventional response, just log the error
+    const errorMessage = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(
-      `Failed to open board in editor: ${
-        error instanceof Error ? error.message : String(error)
-      }`
+      `Failed to open board in editor: ${errorMessage}`
     );
+    return {
+      command: "boardOpenedInEditor",
+      data: {
+        success: false,
+        error: errorMessage,
+      },
+    };
   }
 }

@@ -34,7 +34,9 @@ export async function handleAddCard(
 
   // Check for required fields
   const validationError = validateInput(message, logger);
-  if (validationError) return validationError;
+  if (validationError) {
+    return validationError;
+  }
 
   try {
     console.log("ADD CARD - Processing card addition request", {
@@ -100,21 +102,13 @@ export async function handleAddCard(
     // Add card with default order if unset
     sanitizedCard.order = sanitizedCard.order ?? column.cards.length;
     column.cards.push(sanitizedCard);
-    board.updatedAt = new Date().toISOString();
+    await storage.saveBoard(board);
     console.log(
       `ADD CARD - Added card to column. Column now has ${column.cards.length} cards`
     );
 
-    // Save updated data
-    console.log(`ADD CARD - Creating deep copy of boards for saving`);
-    const updatedBoards = JSON.parse(JSON.stringify(boards));
-
-    console.log(`ADD CARD - Saving boards to storage`);
-    await storage.saveBoards(updatedBoards);
-    console.log(`ADD CARD - Boards saved successfully`);
-
     // Verify the save was successful by checking storage
-    const verifyBoards = storage.getBoards();
+    const verifyBoards = await storage.getBoards();
     const verifyBoard = verifyBoards.find(
       (b: any) => b.id === message.data.boardId
     );

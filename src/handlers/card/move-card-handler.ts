@@ -26,11 +26,10 @@ export async function handleMoveCard(
   }
 
   try {
-    // Get boards and find the target board
-    const boards = storage.getBoards();
-    const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
+    const boards = await storage.getBoards();
+    const board = boards.find((b) => b.id === message.data.boardId);
 
-    if (boardIndex === -1) {
+    if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "cardMoved",
@@ -41,95 +40,54 @@ export async function handleMoveCard(
       };
     }
 
-    // Find the source column
-    const board = boards[boardIndex];
-    const fromColumnIndex = board.columns.findIndex(
+    // Find source and target columns
+    const sourceColumn = board.columns.find(
       (c) => c.id === message.data.fromColumnId
     );
-
-    if (fromColumnIndex === -1) {
-      logger.error(
-        `Source column with ID ${message.data.fromColumnId} not found in board ${message.data.boardId}`
-      );
-      return {
-        command: "cardMoved",
-        data: {
-          success: false,
-          error: `Source column with ID ${message.data.fromColumnId} not found`,
-        },
-      };
-    }
-
-    // Find the target column
-    const toColumnIndex = board.columns.findIndex(
+    const targetColumn = board.columns.find(
       (c) => c.id === message.data.toColumnId
     );
 
-    if (toColumnIndex === -1) {
-      logger.error(
-        `Target column with ID ${message.data.toColumnId} not found in board ${message.data.boardId}`
-      );
+    if (!sourceColumn || !targetColumn) {
+      logger.error("Source or target column not found");
       return {
         command: "cardMoved",
         data: {
           success: false,
-          error: `Target column with ID ${message.data.toColumnId} not found`,
+          error: "Source or target column not found",
         },
       };
     }
 
-    // Find the card to move
-    const fromColumn = board.columns[fromColumnIndex];
-    const cardIndex = fromColumn.cards.findIndex(
+    // Find and remove card from source column
+    const cardIndex = sourceColumn.cards.findIndex(
       (c) => c.id === message.data.cardId
     );
-
     if (cardIndex === -1) {
       logger.error(
-        `Card with ID ${message.data.cardId} not found in column ${message.data.fromColumnId}`
+        `Card with ID ${message.data.cardId} not found in source column`
       );
       return {
         command: "cardMoved",
         data: {
           success: false,
-          error: `Card with ID ${message.data.cardId} not found`,
+          error: `Card with ID ${message.data.cardId} not found in source column`,
         },
       };
     }
 
-    // Get the card and remove it from source column
-    const card = fromColumn.cards[cardIndex];
-    fromColumn.cards.splice(cardIndex, 1);
+    const [card] = sourceColumn.cards.splice(cardIndex, 1);
+    card.columnId = targetColumn.id;
 
-    // Update card properties for the new column
-    const toColumn = board.columns[toColumnIndex];
-    const movedCard: Card = {
-      ...card,
-      columnId: message.data.toColumnId,
-      updatedAt: new Date().toISOString(),
-    };
+    // Insert card at target position
+    targetColumn.cards.splice(message.data.position ?? 0, 0, card);
 
-    // Add the card to the target column at specified position or at the end
-    if (
-      typeof message.data.position === "number" &&
-      message.data.position >= 0 &&
-      message.data.position <= toColumn.cards.length
-    ) {
-      toColumn.cards.splice(message.data.position, 0, movedCard);
-    } else {
-      toColumn.cards.push(movedCard);
-    }
-
-    // Update the order of cards in the target column
-    toColumn.cards.forEach((c, index) => {
+    // Update card order
+    targetColumn.cards.forEach((c, index) => {
       c.order = index;
     });
 
-    // Update the board's timestamp
-    board.updatedAt = new Date().toISOString();
-
-    // Save the updated boards
-    await storage.saveBoards(boards);
+    await storage.saveBoard(board);
 
     logger.debug(
       `Card ${message.data.cardId} moved from column ${message.data.fromColumnId} to ${message.data.toColumnId}`
@@ -138,10 +96,7 @@ export async function handleMoveCard(
       command: "cardMoved",
       data: {
         success: true,
-        cardId: message.data.cardId,
-        fromColumnId: message.data.fromColumnId,
-        toColumnId: message.data.toColumnId,
-        card: movedCard,
+        card,
       },
     };
   } catch (error) {

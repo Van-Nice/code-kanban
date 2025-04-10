@@ -32,14 +32,35 @@ export async function handleCreateBoard(
     title: sanitizedTitle,
     description: sanitizedDescription,
     columns: [
-      { id: uuidv4(), title: "To Do", cards: [] },
-      { id: uuidv4(), title: "In Progress", cards: [] },
-      { id: uuidv4(), title: "Done", cards: [] },
+      {
+        id: uuidv4(),
+        title: "To Do",
+        cards: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: 0,
+      },
+      {
+        id: uuidv4(),
+        title: "In Progress",
+        cards: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: 1,
+      },
+      {
+        id: uuidv4(),
+        title: "Done",
+        cards: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: 2,
+      },
     ],
   };
 
   try {
-    const boards = storage.getBoards();
+    const boards = await storage.getBoards();
 
     // Check for existing board with same ID
     if (boards.some((board) => board.id === newBoard.id)) {
@@ -53,8 +74,7 @@ export async function handleCreateBoard(
       };
     }
 
-    const updatedBoards = [...boards, newBoard];
-    await storage.saveBoards(updatedBoards);
+    await storage.saveBoard(newBoard);
 
     logger.debug("Board created successfully:", newBoard);
     return {

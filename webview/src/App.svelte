@@ -70,21 +70,56 @@
 	});
   
 	function handleExtensionMessage(message: any) {
-	  log('App received message', message);
-	  
+	  if (!message || !message.command) {
+		log('Received invalid message', message);
+		return;
+	  }
+  
 	  switch (message.command) {
 		case 'boardLoaded':
-		  if (message.data.success) {
-			// Board data loaded successfully
-			log('Board loaded in App', { boardId: currentBoardId });
+		  // Handle board loaded message
+		  if (message.data && message.data.success) {
+			log('Board loaded successfully', message.data);
+			// Forward the message to the Board component if we have a current board
+			if (currentBoardId) {
+			  sendMessage({
+				command: message.command,
+				data: message.data
+			  });
+			}
+		  } else {
+			error('Failed to load board', message.data);
+		  }
+		  break;
+		case 'columnUpdated':
+		case 'cardUpdated':
+		case 'cardMoved':
+		  // These messages are handled by the Board component
+		  if (currentBoardId) {
+			sendMessage({
+			  command: message.command,
+			  data: message.data
+			});
 		  }
 		  break;
 		case 'themeChanged':
 		  theme = message.data.theme;
-		  log('Theme changed', { theme });
+		  break;
+		case 'boardsLoaded':
+		case 'boardCreated':
+		case 'boardDeleted':
+		  // These messages are handled by the BoardList component
+		  break;
+		case 'log':
+		case 'error':
+		  // Ignore log and error messages
 		  break;
 		default:
-		  log('Unknown message in App', message);
+		  // Only log unknown messages that aren't handled by child components
+		  if (!['boardLoaded', 'columnUpdated', 'cardUpdated', 'cardMoved'].includes(message.command)) {
+			log('Unknown message', message);
+		  }
+		  break;
 	  }
 	}
   

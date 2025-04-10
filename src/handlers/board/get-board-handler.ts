@@ -24,7 +24,7 @@ export async function handleGetBoard(
   );
 
   // Force a fresh fetch from storage
-  const boards = storage.getBoards();
+  const boards = await storage.getBoards();
   logger.debug(`BOARD DEBUG - Fetched ${boards.length} boards from storage`);
 
   const board = boards.find((b) => b.id === message.data.boardId);
@@ -75,6 +75,7 @@ export async function handleGetBoard(
       columns: boardCopy.columns,
       title: boardCopy.title,
       context: context.webviewContext,
+      updatedAt: boardCopy.updatedAt,
     },
   };
 }

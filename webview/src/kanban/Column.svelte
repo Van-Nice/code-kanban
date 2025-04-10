@@ -1,7 +1,7 @@
 <script lang="ts">
   import Card from './Card.svelte';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import type { Card as CardType, ColumnData } from './types';
+  import type { Card as CardType, Column as ColumnType } from '../types';
   import { log, error } from '../utils/vscodeMessaging';
   import { onMount, onDestroy } from 'svelte';
 
@@ -14,7 +14,7 @@
     onCardUpdated: (card: CardType) => void;
     onCardDeleted: (cardId: string) => void;
     onAddCard: (columnId: string) => void;
-    onUpdateColumn: (columnId: string) => void;
+    onUpdateColumn: (column: ColumnType) => void;
     onDeleteColumn?: (columnId: string) => void;
   }>();
 
@@ -76,22 +76,13 @@
           return;
         }
 
+        // Only handle deletion here - let Card component handle other interactions
         if (target.closest('.delete-card-btn')) {
           e.preventDefault();
           e.stopPropagation();
           handleCardDelete(cardId);
           return;
         }
-
-        if (target.closest('.edit-card-btn')) {
-          e.preventDefault();
-          e.stopPropagation();
-          handleCardEdit(cardId);
-          return;
-        }
-
-        // Default card click
-        handleCardClick(cardId);
       }
     };
 
@@ -118,16 +109,13 @@
   }
 
   function handleCardEdit(cardId: string) {
-    log('Edit card clicked:', cardId);
-    const card = cardsList.find((c: CardType) => c.id === cardId);
-    if (card) {
-      // TODO: Implement edit logic
-    }
+    // Card component handles its own editing
+    log('Card editing handled by Card component');
   }
 
   function handleCardClick(cardId: string) {
-    log('Card clicked: ', cardId);
-    // TODO: Implement general card click logic
+    // Card component handles its own clicks
+    log('Card clicks handled by Card component');
   }
 
   $effect(() => {
@@ -140,15 +128,30 @@
   }
 
   function saveColumnTitle() {
-    if (!editedTitle.trim()) {
-      log('Cannot save column: title is empty');
+    const trimmedTitle = editedTitle.trim();
+    if (!trimmedTitle) {
+      editedTitle = title; // Reset to original title
+      isEditingTitle = false;
       return;
     }
 
-    log('Updating column title', { oldTitle: title, newTitle: editedTitle });
+    if (trimmedTitle === title) {
+      isEditingTitle = false;
+      return;
+    }
+
+    log('Updating column title', { oldTitle: title, newTitle: trimmedTitle });
+    // Create updated column data with new title
+    const updatedColumn = {
+      id,
+      title: trimmedTitle,
+      cards: cardsList,
+      order: 0 // Preserve existing order if needed
+    };
+    
+    // Pass the updated column data to the parent
+    onUpdateColumn(updatedColumn);
     isEditingTitle = false;
-    cardsList = [...cardsList];
-    onUpdateColumn(id);
   }
 
   function handleDragOver(event: DragEvent) {

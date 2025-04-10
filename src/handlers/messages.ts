@@ -162,6 +162,7 @@ export interface BoardLoadedResponse extends ResponseMessageBase {
     columns?: Column[];
     title?: string;
     context?: string;
+    updatedAt?: string;
     error?: string;
   };
 }
@@ -225,13 +226,16 @@ export interface CardMovedResponse extends ResponseMessageBase {
   };
 }
 
-export interface ColumnResponse extends ResponseMessageBase {
-  command: "columnAdded" | "columnUpdated";
+export interface ColumnResponse extends WebviewMessageBase {
+  command: "columnUpdated" | "columnAdded";
   data: {
     success: boolean;
     column?: Column;
     boardId?: string;
     error?: string;
+    oldTitle?: string;
+    newTitle?: string;
+    updatedAt?: string;
   };
 }
 

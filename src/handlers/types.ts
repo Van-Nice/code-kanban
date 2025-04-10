@@ -1,27 +1,24 @@
-export interface Board {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-  columns: Column[];
+import {
+  Board,
+  Card,
+  Column,
+  BoardMetadata,
+  ColumnData,
+  CardData,
+} from "../shared/types";
+
+// Re-export shared types
+export { Board, Card, Column, BoardMetadata, ColumnData, CardData };
+
+// Handler-specific types
+export interface HandlerError {
+  message: string;
+  code?: string;
+  details?: any;
 }
 
-export interface Column {
-  id: string;
-  title: string;
-  cards: Card[];
-}
-
-export interface Card {
-  id: string;
-  title: string;
-  description: string;
-  labels: string[];
-  assignee: string;
-  columnId: string;
-  boardId: string;
-  order?: number;
-  createdAt?: string;
-  updatedAt?: string;
+export interface HandlerResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: HandlerError;
 }

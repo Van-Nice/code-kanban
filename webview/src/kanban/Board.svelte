@@ -1,21 +1,20 @@
 <script lang="ts">
-  import Column from './Column.svelte';
+  import ColumnComponent from './Column.svelte';
   import { v4 as uuidv4 } from 'uuid';
   import { onMount, onDestroy } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
-  import type { Card, ColumnData, BoardSnapshot } from './types';
+  import type { Board, Column, Card } from '../types';
 
-  const { boardId } = $props<{
+  let { boardId } = $props<{
     boardId: string;
   }>();
 
-  let columns = $state<ColumnData[]>([]);
+  let columns = $state<Column[]>([]);
   let messageHandler: (message: any) => void;
   let webviewContext = $state<string>('');
   let isLoading = $state(true);
   let boardTitle = $state('');
-  let boardSnapshots = $state<BoardSnapshot[]>([]);
-  let maxSnapshots = 5; // Keep the last 5 snapshots
+  let boardUpdatedAt = $state<string | undefined>(undefined);
   
   // Card creation state
   let isCreatingCard = $state(false);
@@ -25,34 +24,6 @@
   let newCardAssignee = $state(''); 
   let newCardLabels = $state<string[]>([]);
   let newLabelInput = $state('');
-
-  // Function to create a snapshot of the current board state
-  function createBoardSnapshot(operation: string) {
-    // Create a deep copy of columns to prevent reference issues
-    const snapshot: BoardSnapshot = {
-      columns: JSON.parse(JSON.stringify(columns)), 
-      timestamp: Date.now(),
-      operation
-    };
-    
-    // Add the snapshot and maintain max size
-    boardSnapshots = [snapshot, ...boardSnapshots].slice(0, maxSnapshots);
-    log(`Created board snapshot for operation: ${operation}`);
-  }
-
-  // Function to restore the board state from the latest snapshot
-  function restoreFromSnapshot(operation: string) {
-    if (boardSnapshots.length > 0) {
-      log(`Restoring board state from snapshot due to failed ${operation}`);
-      columns = boardSnapshots[0].columns;
-      // Remove the used snapshot
-      boardSnapshots = boardSnapshots.slice(1);
-    } else {
-      error(`No snapshots available to recover from failed ${operation}`, null);
-      // Refresh the board from the server as a last resort
-      requestBoardData(0);
-    }
-  }
 
   onMount(() => {
     // Initialize VSCode API
@@ -69,17 +40,8 @@
     };
     setupMessageListener(messageHandler);
 
-    // Request board data from extension with retries
+    // Request board data from extension
     requestBoardData();
-    
-    // Set up global console error handler to catch any issues
-    const originalConsoleError = console.error;
-    console.error = function(...args) {
-      originalConsoleError.apply(console, args);
-      if (args[0] && typeof args[0] === 'string' && args[0].includes('Svelte')) {
-        error('Board component error detected', args);
-      }
-    };
   });
 
   onDestroy(() => {
@@ -90,242 +52,129 @@
   });
 
   function handleExtensionMessage(message: any) {
-    log('Board received message', message);
-    
     switch (message.command) {
       case 'boardLoaded':
         if (message.data.success) {
-          log('Board loaded', message.data);
-          
-          // Ensure all columns have UUID IDs instead of titles
-          let columnsUpdated = false;
-          columns = message.data.columns.map((col: ColumnData) => {
-            // Check if ID is not a UUID (likely a title being used as ID)
-            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(col.id)) {
-              log(`Converting non-UUID column ID: ${col.id} to UUID`);
-              columnsUpdated = true;
-              const newColumnId = uuidv4();
-              return {
-                ...col,
-                id: newColumnId, // Generate proper UUID
-                cards: col.cards.map((card: Card) => ({
-                  ...card,
-                  columnId: newColumnId // Use the same new column ID for all cards
-                }))
-              };
-            }
-            return col;
-          });
-          
-          // If we updated any columns, save the changes back to the backend
-          if (columnsUpdated) {
-            log('Saving updated column IDs to backend');
-            // Send updated board state to extension
-            sendMessage({
-              command: 'updateBoard',
-              data: { boardId, columns }
-            });
-          }
-          
-          // Log the loaded columns to verify card states
-          log('Loaded columns with cards', columns.map(col => ({
-            id: col.id,
-            title: col.title,
-            cardCount: col.cards.length,
-            cards: col.cards.map(card => ({ 
-              id: card.id, 
-              title: card.title,
-              columnId: card.columnId // Log columnId to verify consistency
+          boardTitle = message.data.title;
+          boardUpdatedAt = message.data.updatedAt;
+          columns = message.data.columns.map((column: Column) => ({
+            ...column,
+            cards: column.cards.map((card: Card) => ({
+              ...card,
+              order: card.order || 0
             }))
-          })));
-          
-          boardTitle = message.data.title || 'Untitled Board';
-          if (message.data.context) {
-            webviewContext = message.data.context;
-          }
+          }));
           isLoading = false;
+        }
+        break;
+      case 'columnUpdated':
+        if (message.data.success && message.data.column) {
+          columns = columns.map((col: Column) => 
+            col.id === message.data.column.id ? {
+              ...col,
+              ...message.data.column,
+              cards: col.cards
+            } : col
+          );
+          boardUpdatedAt = message.data.updatedAt;
         }
         break;
       case 'cardAdded':
         if (message.data.success) {
           const { card, columnId } = message.data;
-          log('Card added successfully from server', card);
-          updateColumnCards(columnId, [...getColumnCards(columnId), card]);
-        } else if (message.data.error) {
-          error('Card add failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('addCard');
+          columns = columns.map(col => {
+            if (col.id === columnId) {
+              return {
+                ...col,
+                cards: [...col.cards, card]
+              };
+            }
+            return col;
+          });
         }
         break;
       case 'cardUpdated':
         if (message.data.success) {
-          const { card, columnId } = message.data;
-          log('Card updated from server', card);
-          
-          // Find the column that currently contains the card
-          const cardColumn = columns.find(col => 
-            col.cards.some(c => c.id === card.id)
-          );
-          
-          if (cardColumn && cardColumn.id !== columnId) {
-            // The card has moved to a different column in the backend
-            // Remove from current column and add to the correct one
-            log('Card column mismatch detected', {
-              currentColumnId: cardColumn.id,
-              expectedColumnId: columnId,
-              cardId: card.id
-            });
-            
-            // Remove card from current column
-            updateColumnCards(cardColumn.id, cardColumn.cards.filter(c => c.id !== card.id));
-            
-            // Add to correct column
-            updateColumnCards(columnId, [...getColumnCards(columnId), card]);
-          } else {
-            // Standard update in the same column
-            updateColumnCards(columnId, getColumnCards(columnId).map(c => c.id === card.id ? card : c));
-            
-            // Verify the update was applied
-            const updatedCards = getColumnCards(columnId);
-            const updatedCard = updatedCards.find(c => c.id === card.id);
-            if (updatedCard) {
-              log('Card successfully updated', { 
-                title: updatedCard.title,
-                cardId: updatedCard.id,
-                columnId: updatedCard.columnId
-              });
+          const { card } = message.data;
+          columns = columns.map(col => {
+            if (col.id === card.columnId) {
+              return {
+                ...col,
+                cards: col.cards.map(c => c.id === card.id ? card : c)
+              };
             }
-          }
-        } else if (message.data.error) {
-          error('Card update failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('updateCard');
+            return col;
+          });
         }
         break;
       case 'cardDeleted':
         if (message.data.success) {
           const { cardId, columnId } = message.data;
-          log('Card deleted', cardId);
-          updateColumnCards(columnId, getColumnCards(columnId).filter(c => c.id !== cardId));
-        } else if (message.data.error) {
-          error('Card delete failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('deleteCard');
+          columns = columns.map(col => {
+            if (col.id === columnId) {
+              return {
+                ...col,
+                cards: col.cards.filter(c => c.id !== cardId)
+              };
+            }
+            return col;
+          });
         }
         break;
       case 'cardMoved':
         if (message.data.success) {
-          const { cardId, fromColumnId, toColumnId, card } = message.data;
-          log('Card move confirmed by server', { cardId, fromColumnId, toColumnId });
-          
-          // If the server returned the updated card, use it directly
-          if (card) {
-            // Make sure the card is removed from the source column
-            updateColumnCards(fromColumnId, getColumnCards(fromColumnId).filter(c => c.id !== cardId));
-            
-            // Check if the card already exists in the target column
-            const existingCardIndex = getColumnCards(toColumnId).findIndex(c => c.id === cardId);
-            if (existingCardIndex === -1) {
-              // Card not in target column yet - add it
-              updateColumnCards(toColumnId, [...getColumnCards(toColumnId), card]);
-            } else {
-              // Card already in target column - update it
-              updateColumnCards(toColumnId, getColumnCards(toColumnId).map(c => c.id === cardId ? card : c));
+          const { cardId, fromColumnId, toColumnId, position } = message.data;
+          columns = columns.map(col => {
+            if (col.id === fromColumnId) {
+              return {
+                ...col,
+                cards: col.cards.filter(c => c.id !== cardId)
+              };
             }
-          }
-        } else if (message.data.error) {
-          error('Card move failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('moveCard');
+            if (col.id === toColumnId) {
+              const card = columns.find(c => c.id === fromColumnId)?.cards.find(c => c.id === cardId);
+              if (card) {
+                const newCards = [...col.cards];
+                newCards.splice(position, 0, { ...card, columnId: toColumnId });
+                return {
+                  ...col,
+                  cards: newCards
+                };
+              }
+            }
+            return col;
+          });
         }
         break;
       case 'columnAdded':
         if (message.data.success) {
           const { column } = message.data;
-          log('Column added', column);
           columns = [...columns, column];
-        } else if (message.data.error) {
-          error('Column add failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('addColumn');
-        }
-        break;
-      case 'columnUpdated':
-        if (message.data.success) {
-          const { column } = message.data;
-          log('Column updated', column);
-          columns = columns.map(col => col.id === column.id ? column : col);
-        } else if (message.data.error) {
-          error('Column update failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('updateColumn');
         }
         break;
       case 'columnDeleted':
         if (message.data.success) {
           const { columnId } = message.data;
-          log('Column deleted', columnId);
           columns = columns.filter(col => col.id !== columnId);
-        } else if (message.data.error) {
-          error('Column delete failed', message.data.error);
-          // Restore from snapshot
-          restoreFromSnapshot('deleteColumn');
         }
         break;
       case 'boardUpdated':
-        if (message.data.success) {
-          log('Board updated successfully', message.data.board);
-          if (message.data.board) {
-            // Don't update columns here to avoid overriding current UI state
-            // This confirms the server received our changes
-            log('Server confirmed board update');
-          }
-        } else if (message.data.error) {
-          error('Board update failed', message.data.error);
-          // Refresh to get latest from server
-          requestBoardData();
+        if (message.data.success && message.data.board) {
+          boardTitle = message.data.board.title;
+          boardUpdatedAt = message.data.board.updatedAt;
         }
         break;
       default:
-        log('Unknown message', message);
+        break;
     }
   }
 
   function getColumnCards(columnId: string): Card[] {
-    log('📊 getColumnCards called for columnId:', columnId);
     const column = columns.find(col => col.id === columnId);
-    
-    if (!column) {
-      log('📊 Warning: Column not found with ID', columnId);
-      return [];
-    }
-    
-    log(`📊 Found column "${column.title}" with ${column.cards.length} cards`);
     return column ? column.cards : [];
   }
 
-  function updateColumnCards(columnId: string, cards: Card[]) {
-    log('📊 updateColumnCards called', { columnId, cardCount: cards.length });
-    
-    const originalColumn = columns.find(col => col.id === columnId);
-    if (!originalColumn) {
-      log('📊 Error: Cannot update cards - column not found', { columnId });
-      return;
-    }
-    
-    columns = columns.map(col => 
-      col.id === columnId ? { ...col, cards } : col
-    );
-    
-    log('📊 Column cards updated', { columnCount: columns.length });
-  }
-
   function addCard(columnId: string) {
-    log('Adding new card to column', { columnId });
-    
-    // Create snapshot before optimistic update
-    createBoardSnapshot('addCard');
-    
     const newCard: Card = {
       id: uuidv4(),
       title: 'New Card',
@@ -339,11 +188,6 @@
       updatedAt: new Date().toISOString()
     };
 
-    // Optimistically update UI first
-    updateColumnCards(columnId, [...getColumnCards(columnId), newCard]);
-    log('Optimistically added card to UI', newCard);
-
-    // Send message to extension
     sendMessage({
       command: 'addCard',
       data: { card: newCard, columnId, boardId }
@@ -352,52 +196,6 @@
 
   function handleCardMove(data: { cardId: string, fromColumnId: string, toColumnId: string, position?: number }) {
     const { cardId, fromColumnId, toColumnId, position } = data;
-
-    // Create snapshot before optimistic update
-    createBoardSnapshot('moveCard');
-
-    // Optimistically update UI state
-    const fromColumn = columns.find(col => col.id === fromColumnId);
-    const toColumn = columns.find(col => col.id === toColumnId);
-    
-    if (fromColumn && toColumn) {
-      const card = fromColumn.cards.find(c => c.id === cardId);
-      if (card) {
-        // Create a copy of the card with updated columnId to prevent state inconsistency
-        const updatedCard = { 
-          ...card,
-          columnId: toColumnId, // Update the columnId to match the new column
-          updatedAt: new Date().toISOString()
-        };
-        
-        // Remove card from source column
-        updateColumnCards(fromColumnId, fromColumn.cards.filter(c => c.id !== cardId));
-        
-        // Add card to target column at specified position or at the end
-        let newCards;
-        if (typeof position === 'number' && position >= 0 && position <= toColumn.cards.length) {
-          // Insert at specific position
-          newCards = [...toColumn.cards];
-          newCards.splice(position, 0, updatedCard);
-          log(`Optimistically moved card ${cardId} to position ${position} in column ${toColumnId}`);
-        } else {
-          // Append to end
-          newCards = [...toColumn.cards, updatedCard];
-          log(`Optimistically moved card ${cardId} to end of column ${toColumnId}`);
-        }
-        
-        // Update order properties
-        newCards.forEach((c, index) => {
-          c.order = index;
-        });
-        
-        updateColumnCards(toColumnId, newCards);
-        
-        log(`Optimistically moved card ${cardId} from column ${fromColumnId} to ${toColumnId} with updated columnId`);
-      }
-    }
-
-    // Send message to extension
     sendMessage({
       command: 'moveCard',
       data: { cardId, fromColumnId, toColumnId, position, boardId }
@@ -405,108 +203,87 @@
   }
   
   function addColumn() {
-    // Create snapshot before optimistic update
-    createBoardSnapshot('addColumn');
-    
-    const newColumn: ColumnData = {
+    const newColumn: Column = {
       id: uuidv4(),
       title: 'New Column',
-      cards: []
+      cards: [],
+      order: columns.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     
-    // Optimistically update UI
-    columns = [...columns, newColumn];
-    log('Optimistically added column to UI', newColumn);
-    
-    // Send message to extension
     sendMessage({
-      command: 'addColumn',
+      command: 'createColumn',
       data: { column: newColumn, boardId }
     });
   }
 
-  function updateColumn(column: ColumnData) {
-    log('Updating column', column);
-    
-    // Create snapshot before optimistic update
-    createBoardSnapshot('updateColumn');
-    
-    // Optimistically update UI
-    columns = columns.map(col => col.id === column.id ? column : col);
-    
-    // Send message to extension
+  function updateColumn(column: Column) {
     sendMessage({
       command: 'updateColumn',
       data: { column, boardId }
     });
   }
 
-  // New function that accepts columnId as parameter
-  function handleUpdateColumn(columnId: string) {
-    log('Handling column update', columnId);
-    const column = columns.find(col => col.id === columnId);
-    if (column) {
-      updateColumn(column);
-    } else {
-      error(`Could not find column with ID ${columnId}`, null);
+  function handleUpdateColumn(column: Column) {
+    if (!column || !column.id) {
+      error('Cannot update column: invalid column data', null);
+      return;
     }
+
+    const existingColumn = columns.find(col => col.id === column.id);
+    if (!existingColumn) {
+      error('Cannot update column: column not found', null);
+      return;
+    }
+
+    const updatedColumn = {
+      ...column,
+      cards: existingColumn.cards,
+      order: existingColumn.order
+    };
+
+    updateColumn(updatedColumn);
   }
 
   function deleteColumn(columnId: string) {
-    // Don't allow deleting the last column
     if (columns.length <= 1) {
       error('Cannot delete the last column in a board', null);
       return;
     }
     
-    // Create snapshot before optimistic update
-    createBoardSnapshot('deleteColumn');
-    
-    log('Deleting column', columnId);
-    
-    // Optimistically update UI
-    columns = columns.filter(col => col.id !== columnId);
-    
-    // Send message to extension
     sendMessage({
       command: 'deleteColumn',
       data: { columnId, boardId }
     });
   }
 
-  // Function to request board data with retries
-  function requestBoardData(retryCount = 0) {
-    log(`Requesting board data (attempt ${retryCount + 1})`);
+  function requestBoardData() {
+    if (!boardId) {
+      error('Cannot request board data: boardId is missing');
+      return;
+    }
+
     sendMessage({
       command: 'getBoard',
       data: { boardId }
     });
-    
-    // Retry a few times to ensure we get the latest data
-    if (retryCount < 2) {
-      setTimeout(() => {
-        requestBoardData(retryCount + 1);
-      }, 1000 * (retryCount + 1)); // Wait longer for each retry
-    }
   }
 
   function handleCardUpdated(card: Card) {
-    // Create snapshot before optimistic update
-    createBoardSnapshot('updateCard');
-    
-    const column = columns.find(col => col.id === card.columnId);
-    if (column) {
-      updateColumnCards(card.columnId, column.cards.map(c => c.id === card.id ? card : c));
-    }
+    sendMessage({
+      command: 'updateCard',
+      data: { card, boardId }
+    });
   }
 
   function handleCardDeleted(cardId: string) {
-    // Create snapshot before optimistic update
-    createBoardSnapshot('deleteCard');
-    
     const column = columns.find(col => col.cards.some(c => c.id === cardId));
     if (column) {
-      updateColumnCards(column.id, column.cards.filter(c => c.id !== cardId));
+      sendMessage({
+        command: 'deleteCard',
+        data: { cardId, columnId: column.id, boardId }
+      });
     }
   }
 
@@ -514,17 +291,14 @@
     log('🎯 handleAddCard called for column:', columnId);
     log('Opening new card form for column', { columnId });
     
-    // Set the target column ID
     targetColumnId = columnId;
     log('🎯 Set targetColumnId to:', targetColumnId);
     
-    // Reset form values
     newCardTitle = '';
     newCardDescription = '';
     newCardAssignee = '';
     newCardLabels = [];
     
-    // Show the creation form
     isCreatingCard = true;
     log('🎯 Card creation form should now be visible, isCreatingCard =', isCreatingCard);
   }
@@ -549,9 +323,6 @@
     
     log('Creating new card for column', { columnId: targetColumnId });
     
-    // Create snapshot before optimistic update
-    createBoardSnapshot('addCard');
-    
     const newCard: Card = {
       id: uuidv4(),
       title: newCardTitle,
@@ -566,16 +337,10 @@
     };
 
     log('📝 Generated new card object:', newCard);
-
-    // Optimistically update UI first
-    updateColumnCards(targetColumnId, [...getColumnCards(targetColumnId), newCard]);
-    log('Optimistically added card to UI', newCard);
     
-    // Hide the form
     isCreatingCard = false;
 
     log('📝 Sending addCard message to extension');
-    // Send message to extension
     sendMessage({
       command: 'addCard',
       data: { card: newCard, columnId: targetColumnId, boardId }
@@ -645,7 +410,7 @@
           <div class="flex-shrink-0 w-full">
             <!-- Render the Column component with all required props -->
             <!-- Pass callback functions for various card and column operations -->
-            <Column
+            <ColumnComponent
               id={column.id}
               title={column.title}
               cards={column.cards}
@@ -655,7 +420,7 @@
               onCardDeleted={handleCardDeleted}
               onAddCard={handleAddCard}
               onDeleteColumn={deleteColumn}
-              onUpdateColumn={handleUpdateColumn}
+              onUpdateColumn={(columnData) => handleUpdateColumn(columnData)}
             />
           </div>
         {/each}
@@ -669,7 +434,7 @@
           <!-- Each column has fixed width (w-72 = 18rem) and doesn't shrink -->
           <div class="flex-shrink-0 w-72">
             <!-- Render the Column component with all required props -->
-            <Column
+            <ColumnComponent
               id={column.id}
               title={column.title}
               cards={column.cards}
@@ -679,7 +444,7 @@
               onCardDeleted={handleCardDeleted}
               onAddCard={handleAddCard}
               onDeleteColumn={deleteColumn}
-              onUpdateColumn={handleUpdateColumn}
+              onUpdateColumn={(columnData) => handleUpdateColumn(columnData)}
             />
           </div>
         {/each}

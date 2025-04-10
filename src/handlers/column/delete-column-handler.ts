@@ -19,11 +19,10 @@ export async function handleDeleteColumn(
   }
 
   try {
-    // Get boards and find the target board
-    const boards = storage.getBoards();
-    const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
+    const boards = await storage.getBoards();
+    const board = boards.find((b) => b.id === message.data.boardId);
 
-    if (boardIndex === -1) {
+    if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "columnDeleted",
@@ -34,16 +33,12 @@ export async function handleDeleteColumn(
       };
     }
 
-    // Find the target column
-    const board = boards[boardIndex];
+    // Find and remove the column
     const columnIndex = board.columns.findIndex(
       (c) => c.id === message.data.columnId
     );
-
     if (columnIndex === -1) {
-      logger.error(
-        `Column with ID ${message.data.columnId} not found in board ${message.data.boardId}`
-      );
+      logger.error(`Column with ID ${message.data.columnId} not found`);
       return {
         command: "columnDeleted",
         data: {
@@ -53,36 +48,24 @@ export async function handleDeleteColumn(
       };
     }
 
-    // Don't allow deleting the last column in a board
-    if (board.columns.length <= 1) {
-      logger.error("Cannot delete the last column in a board");
-      return {
-        command: "columnDeleted",
-        data: {
-          success: false,
-          error: "Cannot delete the last column in a board",
-        },
-      };
-    }
-
     // Remove the column
     board.columns.splice(columnIndex, 1);
 
-    // Update the board's timestamp
-    board.updatedAt = new Date().toISOString();
+    // Update column orders
+    board.columns.forEach((column, index) => {
+      column.order = index;
+    });
 
-    // Save the updated boards
-    await storage.saveBoards(boards);
+    await storage.saveBoard(board);
 
     logger.debug(
-      `Column ${message.data.columnId} deleted from board ${message.data.boardId}`
+      `Column with ID ${message.data.columnId} deleted successfully`
     );
     return {
       command: "columnDeleted",
       data: {
         success: true,
         columnId: message.data.columnId,
-        boardId: message.data.boardId,
       },
     };
   } catch (error) {

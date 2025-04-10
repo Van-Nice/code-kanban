@@ -92,10 +92,6 @@
     };
     
     try {
-      // Optimistically update UI before waiting for server response
-      log('Optimistically updating card in UI', updatedCard);
-      onUpdateCard(updatedCard);
-      
       // Send direct update message
       log('Sending card update to extension', updatedCard);
       sendMessage({
@@ -135,6 +131,7 @@
             log('Card update confirmed by server', msg.data.card);
             isSaving = false;
             isEditing = false;
+            onUpdateCard(msg.data.card);
           } else if (msg.data.error) {
             log('Card update failed', msg.data.error);
             saveError = msg.data.error;
@@ -188,10 +185,6 @@
   }
 
   function deleteCard() {
-    // Optimistically update UI first
-    log('Optimistically deleting card from UI', id);
-    onDeleteCard(id);
-    
     // Send message to extension
     sendMessage({
       command: 'deleteCard',

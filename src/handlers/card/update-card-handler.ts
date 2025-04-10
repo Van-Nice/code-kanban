@@ -25,27 +25,10 @@ export async function handleUpdateCard(
   }
 
   try {
-    // Sanitize card data
-    const sanitizedCard: Card = {
-      ...message.data.card,
-      title: sanitizeString(message.data.card.title, 100),
-      description: sanitizeString(message.data.card.description || "", 1000),
-      labels: Array.isArray(message.data.card.labels)
-        ? message.data.card.labels
-            .slice(0, 10)
-            .map((label) => sanitizeString(label, 50))
-        : [],
-      assignee: sanitizeString(message.data.card.assignee || "", 100),
-      boardId: message.data.boardId,
-      columnId: message.data.columnId,
-      updatedAt: new Date().toISOString(),
-    };
+    const boards = await storage.getBoards();
+    const board = boards.find((b) => b.id === message.data.boardId);
 
-    // Get boards and find the target board
-    const boards = storage.getBoards();
-    const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
-
-    if (boardIndex === -1) {
+    if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "cardUpdated",
@@ -56,62 +39,38 @@ export async function handleUpdateCard(
       };
     }
 
-    // Find the target column
-    const board = boards[boardIndex];
-    const columnIndex = board.columns.findIndex(
-      (c) => c.id === message.data.columnId
-    );
-
-    if (columnIndex === -1) {
-      logger.error(
-        `Column with ID ${message.data.columnId} not found in board ${message.data.boardId}`
-      );
-      return {
-        command: "cardUpdated",
-        data: {
-          success: false,
-          error: `Column with ID ${message.data.columnId} not found`,
-        },
-      };
-    }
-
     // Find the card to update
-    const column = board.columns[columnIndex];
-    const cardIndex = column.cards.findIndex(
-      (c) => c.id === message.data.card.id
-    );
-
-    if (cardIndex === -1) {
-      logger.error(
-        `Card with ID ${message.data.card.id} not found in column ${message.data.columnId}`
+    for (const column of board.columns) {
+      const cardIndex = column.cards.findIndex(
+        (c) => c.id === message.data.card.id
       );
-      return {
-        command: "cardUpdated",
-        data: {
-          success: false,
-          error: `Card with ID ${message.data.card.id} not found`,
-        },
-      };
+      if (cardIndex !== -1) {
+        // Update card properties
+        const card = column.cards[cardIndex];
+        Object.assign(card, message.data.card);
+        card.updatedAt = new Date().toISOString();
+
+        await storage.saveBoard(board);
+
+        logger.debug(
+          `Card with ID ${message.data.card.id} updated successfully`
+        );
+        return {
+          command: "cardUpdated",
+          data: {
+            success: true,
+            card,
+          },
+        };
+      }
     }
 
-    // Update the card
-    column.cards[cardIndex] = sanitizedCard;
-
-    // Update the board's timestamp
-    board.updatedAt = new Date().toISOString();
-
-    // Save the updated boards
-    await storage.saveBoards(boards);
-
-    logger.debug(
-      `Card ${sanitizedCard.id} updated in column ${message.data.columnId}`
-    );
+    logger.error(`Card with ID ${message.data.card.id} not found`);
     return {
       command: "cardUpdated",
       data: {
-        success: true,
-        card: sanitizedCard,
-        columnId: message.data.columnId,
+        success: false,
+        error: `Card with ID ${message.data.card.id} not found`,
       },
     };
   } catch (error) {

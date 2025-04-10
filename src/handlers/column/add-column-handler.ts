@@ -21,18 +21,10 @@ export async function handleAddColumn(
   }
 
   try {
-    // Sanitize column data
-    const sanitizedColumn: Column = {
-      id: message.data.column.id,
-      title: sanitizeString(message.data.column.title, 100),
-      cards: [],
-    };
+    const boards = await storage.getBoards();
+    const board = boards.find((b) => b.id === message.data.boardId);
 
-    // Get boards and find the target board
-    const boards = storage.getBoards();
-    const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
-
-    if (boardIndex === -1) {
+    if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "columnAdded",
@@ -43,39 +35,25 @@ export async function handleAddColumn(
       };
     }
 
-    // Add column to board
-    const board = boards[boardIndex];
+    // Add the column to the board
+    const newColumn = {
+      id: message.data.column.id,
+      title: sanitizeString(message.data.column.title, 100),
+      cards: [],
+      order: board.columns.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-    // Check for existing column with same ID
-    if (board.columns.some((col) => col.id === sanitizedColumn.id)) {
-      logger.error(
-        `Column with ID ${sanitizedColumn.id} already exists in board ${message.data.boardId}`
-      );
-      return {
-        command: "columnAdded",
-        data: {
-          success: false,
-          error: `Column with ID ${sanitizedColumn.id} already exists`,
-        },
-      };
-    }
+    board.columns.push(newColumn);
+    await storage.saveBoard(board);
 
-    board.columns.push(sanitizedColumn);
-
-    // Update the board's timestamp
-    board.updatedAt = new Date().toISOString();
-
-    // Save the updated boards
-    await storage.saveBoards(boards);
-
-    logger.debug(
-      `Column ${sanitizedColumn.id} added to board ${message.data.boardId}`
-    );
+    logger.debug("Column added successfully:", newColumn);
     return {
       command: "columnAdded",
       data: {
         success: true,
-        column: sanitizedColumn,
+        column: newColumn,
         boardId: message.data.boardId,
       },
     };

@@ -19,7 +19,7 @@ export async function handleDeleteBoard(
   }
 
   try {
-    const boards = storage.getBoards();
+    const boards = await storage.getBoards();
     const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
 
     if (boardIndex === -1) {
@@ -40,7 +40,9 @@ export async function handleDeleteBoard(
       ...boards.slice(0, boardIndex),
       ...boards.slice(boardIndex + 1),
     ];
-    await storage.saveBoards(updatedBoards);
+    for (const board of updatedBoards) {
+      await storage.saveBoard(board);
+    }
 
     logger.debug(`Board with ID ${message.data.boardId} deleted successfully`);
     return {

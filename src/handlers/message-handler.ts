@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
-import { WebviewMessage, ResponseMessage, UpdateCardMessage } from "./messages";
+import {
+  WebviewMessage,
+  ResponseMessage,
+  UpdateCardMessage,
+  ColumnDeletedResponse,
+} from "./messages";
 import { Logger } from "./logger";
 import { BoardStorage } from "./board/board-storage";
 import * as handlers from ".";
@@ -118,6 +123,24 @@ export class MessageHandler {
       } catch (error) {
         console.error(
           "🟢 CRITICAL ERROR: Failed to send cardUpdated response:",
+          error
+        );
+      }
+      return;
+    } else if (message.command === "columnDeleted") {
+      const columnResponse = message as ColumnDeletedResponse;
+      console.log(
+        "🟢 RESPONSE: Sending columnDeleted response to webview:",
+        JSON.stringify(columnResponse.data, null, 2)
+      );
+      const sendTime = new Date().toISOString();
+      console.log(`🟢 RESPONSE: Timestamp ${sendTime}`);
+      try {
+        this.webview.postMessage(message);
+        console.log("🟢 RESPONSE: columnDeleted response sent successfully");
+      } catch (error) {
+        console.error(
+          "🟢 CRITICAL ERROR: Failed to send columnDeleted response:",
           error
         );
       }
