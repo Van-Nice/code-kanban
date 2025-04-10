@@ -37,14 +37,19 @@ export async function handleDeleteCard(
       };
     }
 
-    // Find and remove the card
+    // Find the card to delete
     for (const column of board.columns) {
+      if (!column.cards) {
+        continue; // Skip columns without cards
+      }
+
       const cardIndex = column.cards.findIndex(
         (c) => c.id === message.data.cardId
       );
       if (cardIndex !== -1) {
         column.cards.splice(cardIndex, 1);
         await storage.saveBoard(board);
+
         logger.debug(
           `Card with ID ${message.data.cardId} deleted successfully`
         );

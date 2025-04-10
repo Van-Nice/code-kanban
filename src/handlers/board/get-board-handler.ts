@@ -47,19 +47,19 @@ export async function handleGetBoard(
 
   for (const column of board.columns) {
     logger.debug(
-      `BOARD DEBUG - Column ${column.id} (${column.title}) has ${column.cards.length} cards`
+      `BOARD DEBUG - Column ${column.id} (${column.title}) has ${
+        column.cards?.length || 0
+      } cards`
     );
 
-    if (column.cards.length > 0) {
+    if (column.cards && column.cards.length > 0) {
       logger.debug(
-        `BOARD DEBUG - First few cards in column ${column.id}:`,
-        JSON.stringify(
+        `BOARD DEBUG - First 3 cards: ${JSON.stringify(
           column.cards.slice(0, 3).map((c) => ({
             id: c.id,
             title: c.title,
-            columnId: c.columnId,
           }))
-        )
+        )}`
       );
     }
   }

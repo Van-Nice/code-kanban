@@ -1,150 +1,72 @@
-import { AddCardMessage, CardResponse } from "../messages";
+import { AddCardMessage, CardAddedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
-import { Board, Card } from "../types";
-
-/**
- * Validates the input message for card addition
- */
-function validateInput(
-  message: AddCardMessage,
-  logger: any
-): CardResponse | null {
-  if (
-    !message.data?.boardId ||
-    !message.data?.columnId ||
-    !message.data?.card
-  ) {
-    console.log("ADD CARD - Missing required fields for card addition");
-    return {
-      command: "cardAdded",
-      data: {
-        success: false,
-        error: "Missing required fields: boardId, columnId, or card data",
-      },
-    };
-  }
-  return null;
-}
+import { v4 as uuidv4 } from "uuid";
 
 export async function handleAddCard(
   message: AddCardMessage,
   context: HandlerContext
-): Promise<CardResponse> {
+): Promise<CardAddedResponse> {
   const { storage, logger } = context;
 
-  // Check for required fields
-  const validationError = validateInput(message, logger);
-  if (validationError) {
-    return validationError;
+  if (
+    !message.data?.boardId ||
+    !message.data?.columnId ||
+    !message.data?.title
+  ) {
+    logger.error("Missing required fields for card addition");
+    return {
+      command: "cardAdded",
+      data: {
+        success: false,
+        error: "Missing required fields: boardId, columnId, or title",
+        boardId: message.data?.boardId || "",
+        columnId: message.data?.columnId || "",
+      },
+    };
   }
 
   try {
-    console.log("ADD CARD - Processing card addition request", {
-      boardId: message.data.boardId,
-      columnId: message.data.columnId,
-      cardId: message.data.card?.id,
-      cardTitle: message.data.card?.title,
-    });
-
-    // Prepare sanitized card data
-    const sanitizedCard: Card = {
-      ...message.data.card,
-      title: message.data.card.title?.slice(0, 100) || "",
-      description: message.data.card.description?.slice(0, 1000) || "",
-      labels: Array.isArray(message.data.card.labels)
-        ? message.data.card.labels
-            .slice(0, 10)
-            .map((label: string) =>
-              typeof label === "string" ? label.slice(0, 50) : ""
-            )
-        : [],
-      assignee: message.data.card.assignee?.slice(0, 100) || "",
-      boardId: message.data.boardId,
-      columnId: message.data.columnId,
-      createdAt: message.data.card.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    console.log("ADD CARD - Sanitized card data:", sanitizedCard);
-
-    // Fetch and locate the target board
     const boards = await storage.getBoards();
-    console.log(`ADD CARD - Found ${boards.length} boards in storage`);
+    const board = boards.find((b) => b.id === message.data.boardId);
 
-    const board = boards.find((b: Board) => b.id === message.data.boardId);
     if (!board) {
-      console.log(`ADD CARD - ERROR: Board ${message.data.boardId} not found`);
+      logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "cardAdded",
-        data: { success: false, error: "Board not found" },
+        data: {
+          success: false,
+          error: `Board with ID ${message.data.boardId} not found`,
+          boardId: message.data.boardId,
+          columnId: message.data.columnId,
+        },
       };
     }
-    console.log(
-      `ADD CARD - Found board: ${board.title} with ${board.columns.length} columns`
-    );
 
-    // Locate the target column
-    const column = board.columns.find(
-      (c: any) => c.id === message.data.columnId
-    );
-    if (!column) {
-      console.log(
-        `ADD CARD - ERROR: Column ${message.data.columnId} not found`
-      );
-      return {
-        command: "cardAdded",
-        data: { success: false, error: "Column not found" },
-      };
-    }
-    console.log(
-      `ADD CARD - Found column: ${column.title} with ${column.cards.length} cards`
-    );
+    // Create the new card
+    const newCard = {
+      id: uuidv4(),
+      title: message.data.title.slice(0, 100) || "",
+      description: message.data.description?.slice(0, 1000) || "",
+      columnId: message.data.columnId,
+      boardId: message.data.boardId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-    // Add card with default order if unset
-    sanitizedCard.order = sanitizedCard.order ?? column.cards.length;
-    column.cards.push(sanitizedCard);
-    await storage.saveBoard(board);
-    console.log(
-      `ADD CARD - Added card to column. Column now has ${column.cards.length} cards`
-    );
+    await storage.saveCard(newCard);
 
-    // Verify the save was successful by checking storage
-    const verifyBoards = await storage.getBoards();
-    const verifyBoard = verifyBoards.find(
-      (b: any) => b.id === message.data.boardId
-    );
-    const verifyColumn = verifyBoard?.columns.find(
-      (c: any) => c.id === message.data.columnId
-    );
-    const verifyCard = verifyColumn?.cards.find(
-      (c: any) => c.id === sanitizedCard.id
-    );
-
-    console.log(
-      `ADD CARD - Verification: Card exists after save: ${Boolean(verifyCard)}`
-    );
-    if (verifyCard) {
-      console.log(`ADD CARD - Verification successful. Card saved correctly:`, {
-        id: verifyCard.id,
-        title: verifyCard.title,
-        columnId: verifyCard.columnId,
-      });
-    } else {
-      console.log(
-        `ADD CARD - WARNING: Card verification failed! Card may not have been saved properly.`
-      );
-    }
-
-    // Verify and return success
+    logger.debug(`Card with ID ${newCard.id} added successfully`);
     return {
       command: "cardAdded",
       data: {
         success: true,
-        card: sanitizedCard,
+        boardId: message.data.boardId,
         columnId: message.data.columnId,
+        card: newCard,
       },
     };
-  } catch (error: unknown) {
-    console.log(`ADD CARD - ERROR: Error adding card:`, error);
+  } catch (error) {
+    logger.error("Error adding card:", error);
     return {
       command: "cardAdded",
       data: {
@@ -152,6 +74,8 @@ export async function handleAddCard(
         error: `Failed to add card: ${
           error instanceof Error ? error.message : String(error)
         }`,
+        boardId: message.data.boardId,
+        columnId: message.data.columnId,
       },
     };
   }

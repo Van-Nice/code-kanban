@@ -1,5 +1,8 @@
 import { DeleteColumnMessage, ColumnDeletedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
+import { Board as HandlerBoard, Column as HandlerColumn } from "../board/board";
+import { Board as ModelBoard, Column as ModelColumn } from "../../models/board";
+import { convertToModelColumn } from "../../utils/type-conversions";
 
 export async function handleDeleteColumn(
   message: DeleteColumnMessage,
@@ -20,7 +23,9 @@ export async function handleDeleteColumn(
 
   try {
     const boards = await storage.getBoards();
-    const board = boards.find((b) => b.id === message.data.boardId);
+    const board = boards.find(
+      (b) => b.id === message.data.boardId
+    ) as unknown as HandlerBoard;
 
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
@@ -56,7 +61,32 @@ export async function handleDeleteColumn(
       column.order = index;
     });
 
-    await storage.saveBoard(board);
+    // Convert to ModelBoard before saving
+    const modelBoard: ModelBoard = {
+      ...board,
+      description: board.description || "",
+      columns: board.columns.map((col) => ({
+        id: col.id,
+        title: col.title,
+        boardId: board.id,
+        cards: col.cards?.map((c) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description || "",
+          columnId: c.columnId,
+          boardId: board.id,
+          createdAt: new Date(c.createdAt),
+          updatedAt: new Date(c.updatedAt),
+        })),
+        cardIds: col.cards?.map((c) => c.id) || [],
+        createdAt: new Date(col.createdAt),
+        updatedAt: new Date(col.updatedAt),
+      })),
+      createdAt: new Date(board.createdAt),
+      updatedAt: new Date(board.updatedAt),
+    };
+
+    await storage.saveBoard(modelBoard);
 
     logger.debug(
       `Column with ID ${message.data.columnId} deleted successfully`

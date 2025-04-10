@@ -1,50 +1,44 @@
-import { UpdateBoardMessage, BoardResponse } from "../messages";
+import { UpdateBoardMessage, BoardUpdatedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
 
 export async function handleUpdateBoard(
   message: UpdateBoardMessage,
   context: HandlerContext
-): Promise<BoardResponse> {
+): Promise<BoardUpdatedResponse> {
   const { storage, logger } = context;
 
-  if (!message.data?.boardId || !message.data?.columns) {
-    logger.error("Missing required fields for board update");
-    return {
-      command: "boardUpdated",
-      data: {
-        success: false,
-        error: "Missing required fields: boardId or columns",
-      },
-    };
-  }
-
   try {
-    // Get boards and find the target board
-    const boards = await storage.getBoards();
-    const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
+    const { boardId, title } = message.data;
 
-    if (boardIndex === -1) {
-      logger.error(`Board with ID ${message.data.boardId} not found`);
+    if (!boardId || !title) {
       return {
         command: "boardUpdated",
         data: {
           success: false,
-          error: `Board with ID ${message.data.boardId} not found`,
+          error: "Missing required fields: boardId and title",
         },
       };
     }
 
-    // Update the board columns
-    const board = boards[boardIndex];
-    board.columns = message.data.columns;
+    const boards = await storage.getBoards();
+    const board = boards.find((b) => b.id === boardId);
 
-    // Update the board's timestamp
-    board.updatedAt = new Date().toISOString();
+    if (!board) {
+      logger.error(`Board with ID ${boardId} not found`);
+      return {
+        command: "boardUpdated",
+        data: {
+          success: false,
+          error: `Board with ID ${boardId} not found`,
+        },
+      };
+    }
 
-    // Save the updated board
+    board.title = title;
+    board.updatedAt = new Date();
+
     await storage.saveBoard(board);
 
-    logger.debug(`Board ${message.data.boardId} updated with new columns`);
     return {
       command: "boardUpdated",
       data: {
@@ -58,9 +52,8 @@ export async function handleUpdateBoard(
       command: "boardUpdated",
       data: {
         success: false,
-        error: `Failed to update board: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       },
     };
   }

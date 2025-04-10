@@ -1,7 +1,13 @@
 import { UpdateCardMessage, CardResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
-import { Card } from "../types";
+import {
+  Board as HandlerBoard,
+  Card as HandlerCard,
+  Column as HandlerColumn,
+} from "../board/board";
+import { Board as ModelBoard, Card as ModelCard } from "../../models/board";
 import { sanitizeString } from "../utils";
+import { convertToModelCard } from "../../utils/type-conversions";
 
 export async function handleUpdateCard(
   message: UpdateCardMessage,
@@ -12,21 +18,24 @@ export async function handleUpdateCard(
   if (
     !message.data?.boardId ||
     !message.data?.columnId ||
-    !message.data?.card
+    !message.data?.cardId ||
+    !message.data?.title
   ) {
     logger.error("Missing required fields for card update");
     return {
       command: "cardUpdated",
       data: {
         success: false,
-        error: "Missing required fields: boardId, columnId, or card data",
+        error: "Missing required fields: boardId, columnId, cardId, or title",
       },
     };
   }
 
   try {
     const boards = await storage.getBoards();
-    const board = boards.find((b) => b.id === message.data.boardId);
+    const board = boards.find(
+      (b) => b.id === message.data.boardId
+    ) as unknown as HandlerBoard;
 
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
@@ -41,36 +50,82 @@ export async function handleUpdateCard(
 
     // Find the card to update
     for (const column of board.columns) {
+      if (!column.cards) {
+        column.cards = [];
+        continue;
+      }
+
       const cardIndex = column.cards.findIndex(
-        (c) => c.id === message.data.card.id
+        (c) => c.id === message.data.cardId
       );
+
       if (cardIndex !== -1) {
         // Update card properties
         const card = column.cards[cardIndex];
-        Object.assign(card, message.data.card);
-        card.updatedAt = new Date().toISOString();
 
-        await storage.saveBoard(board);
+        // Update the card with the new values
+        card.title = sanitizeString(message.data.title, 100);
+        card.description = sanitizeString(message.data.description, 1000);
+        card.updatedAt = new Date().toISOString(); // Convert to string for handler type
+
+        // Convert to ModelBoard before saving
+        const modelBoard: ModelBoard = {
+          ...board,
+          description: board.description || "",
+          columns: board.columns.map((col) => ({
+            id: col.id,
+            title: col.title,
+            boardId: board.id,
+            cards: col.cards?.map((c) => ({
+              id: c.id,
+              title: c.title,
+              description: c.description || "",
+              columnId: c.columnId,
+              boardId: board.id,
+              createdAt: new Date(c.createdAt),
+              updatedAt: new Date(c.updatedAt),
+            })),
+            cardIds: col.cards?.map((c) => c.id) || [],
+            createdAt: new Date(col.createdAt),
+            updatedAt: new Date(col.updatedAt),
+          })),
+          createdAt: new Date(board.createdAt),
+          updatedAt: new Date(board.updatedAt),
+        };
+
+        await storage.saveBoard(modelBoard);
 
         logger.debug(
-          `Card with ID ${message.data.card.id} updated successfully`
+          `Card with ID ${message.data.cardId} updated successfully`
         );
+
+        // Create a ModelCard for the response
+        const responseCard: ModelCard = {
+          id: card.id,
+          title: card.title,
+          description: card.description || "",
+          columnId: card.columnId,
+          boardId: message.data.boardId,
+          createdAt: new Date(card.createdAt),
+          updatedAt: new Date(card.updatedAt),
+        };
+
         return {
           command: "cardUpdated",
           data: {
             success: true,
-            card,
+            card: responseCard,
           },
         };
       }
     }
 
-    logger.error(`Card with ID ${message.data.card.id} not found`);
+    logger.error(`Card with ID ${message.data.cardId} not found`);
     return {
       command: "cardUpdated",
       data: {
         success: false,
-        error: `Card with ID ${message.data.card.id} not found`,
+        error: `Card with ID ${message.data.cardId} not found`,
       },
     };
   } catch (error) {

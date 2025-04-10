@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import type {
-  Board,
-  Column,
-  Card,
+  Board as SharedBoard,
+  Column as SharedColumn,
+  Card as SharedCard,
   StorageData,
   BoardMetadata,
   ColumnData,
@@ -16,8 +16,72 @@ import {
   isCardData,
 } from "../../shared/types";
 import { migrateData } from "../../shared/migrations";
+import { Board, Card, Column } from "../../models/board";
+import { Storage } from "../../models/storage";
 
-export class BoardStorage {
+/**
+ * Adapters for converting between storage types and API model types
+ */
+function convertToApiBoard(board: SharedBoard): Board {
+  return {
+    id: board.id,
+    title: board.title,
+    description: board.description || "",
+    columns: board.columns.map((c) => convertToApiColumn(c)),
+    columnIds: board.columns.map((c) => c.id),
+    createdAt: new Date(board.createdAt),
+    updatedAt: new Date(board.updatedAt),
+  };
+}
+
+function convertToApiColumn(column: SharedColumn): Column {
+  // Ensure we have a valid boardId, default to empty string if not available
+  let boardId = "";
+  for (const card of column.cards) {
+    if (card.boardId) {
+      boardId = card.boardId;
+      break;
+    }
+  }
+
+  return {
+    id: column.id,
+    title: column.title,
+    boardId: boardId,
+    cards: column.cards.map((c) => convertToApiCard(c)),
+    cardIds: column.cards.map((c) => c.id),
+    createdAt: new Date(column.createdAt),
+    updatedAt: new Date(column.updatedAt),
+  };
+}
+
+function convertToApiCard(card: SharedCard): Card {
+  return {
+    id: card.id,
+    title: card.title,
+    description: card.description || "",
+    columnId: card.columnId,
+    boardId: card.boardId,
+    createdAt: new Date(card.createdAt),
+    updatedAt: new Date(card.updatedAt),
+  };
+}
+
+function convertToStorageBoard(
+  board: Board,
+  columns: SharedColumn[] = []
+): SharedBoard {
+  return {
+    id: board.id,
+    title: board.title,
+    description: board.description || "",
+    columns: columns,
+    createdAt: board.createdAt.toISOString(),
+    updatedAt: board.updatedAt.toISOString(),
+  };
+}
+
+export class BoardStorage implements Storage {
   private context: vscode.ExtensionContext;
   private saveInProgress: boolean = false;
   private saveQueue: Array<{
@@ -241,17 +305,17 @@ export class BoardStorage {
 
   public async getBoards(): Promise<Board[]> {
     const data = this.getData();
-    const boards: Board[] = [];
+    const sharedBoards: SharedBoard[] = [];
 
     // Convert stored data into Board objects
     for (const [boardId, boardData] of data.boards) {
-      const columns: Column[] = [];
+      const columns: SharedColumn[] = [];
 
       // Get all columns for this board
       for (const columnId of boardData.columnIds) {
         const columnData = data.columns.get(columnId);
         if (columnData) {
-          const cards: Card[] = [];
+          const cards: SharedCard[] = [];
 
           // Get all cards for this column
           for (const cardId of columnData.cardIds) {
@@ -289,7 +353,7 @@ export class BoardStorage {
       // Sort columns by order
       columns.sort((a, b) => a.order - b.order);
 
-      boards.push({
+      sharedBoards.push({
         id: boardId,
         title: boardData.title,
         description: boardData.description,
@@ -299,28 +363,76 @@ export class BoardStorage {
       });
     }
 
-    return boards;
+    // Convert to API model format
+    return sharedBoards.map((board) => convertToApiBoard(board));
   }
 
   public async saveBoard(board: Board): Promise<void> {
     const data = this.getData();
 
+    // Get existing columns if available
+    const existingColumns: SharedColumn[] = [];
+    const existingBoard = data.boards.get(board.id);
+
+    if (existingBoard) {
+      for (const columnId of existingBoard.columnIds) {
+        const columnData = data.columns.get(columnId);
+        if (columnData) {
+          const cards: SharedCard[] = [];
+
+          for (const cardId of columnData.cardIds) {
+            const cardData = data.cards.get(cardId);
+            if (cardData) {
+              cards.push({
+                id: cardId,
+                title: cardData.title,
+                description: cardData.description,
+                labels: cardData.labels,
+                assignee: cardData.assignee,
+                columnId: columnId,
+                boardId: board.id,
+                order: cardData.order,
+                createdAt: cardData.createdAt,
+                updatedAt: cardData.updatedAt,
+              });
+            }
+          }
+
+          existingColumns.push({
+            id: columnId,
+            title: columnData.title,
+            cards,
+            order: columnData.order,
+            createdAt: columnData.createdAt,
+            updatedAt: columnData.updatedAt,
+          });
+        }
+      }
+    }
+
+    // Convert to storage format
+    const sharedBoard = convertToStorageBoard(board, existingColumns);
+
     // Update board metadata
     const boardMetadata: BoardMetadata = {
-      id: board.id,
-      title: board.title,
-      description: board.description,
-      columnIds: board.columns.map((col) => col.id),
-      createdAt: board.createdAt,
-      updatedAt: board.updatedAt,
+      id: sharedBoard.id,
+      title: sharedBoard.title,
+      description: sharedBoard.description,
+      columnIds: board.columnIds || board.columns.map((col) => col.id),
+      createdAt: sharedBoard.createdAt,
+      updatedAt: sharedBoard.updatedAt,
     };
     data.boards.set(board.id, boardMetadata);
 
-    // Get the set of all card IDs in the board
+    // Get the set of all card IDs referenced by columnIds
     const currentCardIds = new Set<string>();
-    for (const column of board.columns) {
-      for (const card of column.cards) {
-        currentCardIds.add(card.id);
+    const columnIds = board.columnIds || board.columns.map((col) => col.id);
+    for (const columnId of columnIds) {
+      const columnData = data.columns.get(columnId);
+      if (columnData) {
+        for (const cardId of columnData.cardIds) {
+          currentCardIds.add(cardId);
+        }
       }
     }
 
@@ -332,53 +444,6 @@ export class BoardStorage {
       if (!currentCardIds.has(card.id)) {
         data.cards.delete(card.id);
       }
-    }
-
-    // Update columns
-    for (const column of board.columns) {
-      const columnData: ColumnData = {
-        id: column.id,
-        title: column.title,
-        boardId: board.id,
-        cardIds: column.cards.map((card) => card.id),
-        order: column.order,
-        createdAt: column.createdAt,
-        updatedAt: column.updatedAt,
-      };
-      data.columns.set(column.id, columnData);
-
-      // Update cards
-      for (const card of column.cards) {
-        const cardData: CardData = {
-          id: card.id,
-          title: card.title,
-          description: card.description,
-          labels: card.labels,
-          assignee: card.assignee,
-          columnId: column.id,
-          boardId: board.id,
-          order: card.order,
-          createdAt: card.createdAt,
-          updatedAt: card.updatedAt,
-        };
-        data.cards.set(card.id, cardData);
-      }
-    }
-
-    // Clean up any columns that were removed from this board
-    const existingBoard = data.boards.get(board.id);
-    if (existingBoard) {
-      const currentColumnIds = new Set(board.columns.map((col) => col.id));
-      const removedColumnIds = existingBoard.columnIds.filter(
-        (columnId) => !currentColumnIds.has(columnId)
-      );
-      removedColumnIds.forEach((columnId) => {
-        const column = data.columns.get(columnId);
-        if (column) {
-          column.cardIds.forEach((cardId) => data.cards.delete(cardId));
-          data.columns.delete(columnId);
-        }
-      });
     }
 
     await this.saveData(data);
@@ -405,5 +470,267 @@ export class BoardStorage {
     boards.delete(boardId);
 
     await this.saveData({ boards, columns, cards });
+  }
+
+  // Storage interface implementation
+  public async getBoard(id: string): Promise<Board | null> {
+    const boards = await this.getBoards();
+    return boards.find((board) => board.id === id) || null;
+  }
+
+  public async getColumn(id: string): Promise<Column | null> {
+    const data = this.getData();
+    const columnData = data.columns.get(id);
+
+    if (!columnData) {
+      return null;
+    }
+
+    const cardsArray: SharedCard[] = [];
+
+    for (const cardId of columnData.cardIds) {
+      const cardData = data.cards.get(cardId);
+      if (cardData) {
+        cardsArray.push({
+          id: cardId,
+          title: cardData.title,
+          description: cardData.description,
+          labels: cardData.labels,
+          assignee: cardData.assignee,
+          columnId: id,
+          boardId: columnData.boardId,
+          order: cardData.order,
+          createdAt: cardData.createdAt,
+          updatedAt: cardData.updatedAt,
+        });
+      }
+    }
+
+    const sharedColumn: SharedColumn = {
+      id: columnData.id,
+      title: columnData.title,
+      cards: cardsArray,
+      order: columnData.order,
+      createdAt: columnData.createdAt,
+      updatedAt: columnData.updatedAt,
+    };
+
+    return convertToApiColumn(sharedColumn);
+  }
+
+  public async getColumns(boardId: string): Promise<Column[]> {
+    const data = this.getData();
+    const board = data.boards.get(boardId);
+
+    if (!board) {
+      return [];
+    }
+
+    const columns: Column[] = [];
+
+    for (const columnId of board.columnIds) {
+      const column = await this.getColumn(columnId);
+      if (column) {
+        columns.push(column);
+      }
+    }
+
+    return columns;
+  }
+
+  public async saveColumn(column: Column): Promise<void> {
+    const data = this.getData();
+
+    // Create/update column data
+    const columnData: ColumnData = {
+      id: column.id,
+      title: column.title,
+      boardId: column.boardId,
+      cardIds: column.cardIds,
+      order: 0, // Default order
+      createdAt: column.createdAt.toISOString(),
+      updatedAt: column.updatedAt.toISOString(),
+    };
+
+    data.columns.set(column.id, columnData);
+
+    // Update board to include column if needed
+    const board = data.boards.get(column.boardId);
+    if (board && !board.columnIds.includes(column.id)) {
+      board.columnIds.push(column.id);
+      data.boards.set(column.boardId, board);
+    }
+
+    await this.saveData(data);
+  }
+
+  public async deleteColumn(id: string): Promise<void> {
+    const data = this.getData();
+    const column = data.columns.get(id);
+
+    if (!column) {
+      return;
+    }
+
+    // Delete all cards in this column
+    column.cardIds.forEach((cardId) => {
+      data.cards.delete(cardId);
+    });
+
+    // Remove column
+    data.columns.delete(id);
+
+    // Update board to remove column reference
+    const board = data.boards.get(column.boardId);
+    if (board) {
+      board.columnIds = board.columnIds.filter((cId) => cId !== id);
+      data.boards.set(column.boardId, board);
+    }
+
+    await this.saveData(data);
+  }
+
+  public async saveCard(card: Card): Promise<void> {
+    const data = this.getData();
+
+    // Create/update card data
+    const cardData: CardData = {
+      id: card.id,
+      title: card.title,
+      description: card.description,
+      labels: [],
+      assignee: "",
+      columnId: card.columnId,
+      boardId: card.boardId,
+      order: 0, // Default order
+      createdAt: card.createdAt.toISOString(),
+      updatedAt: card.updatedAt.toISOString(),
+    };
+
+    data.cards.set(card.id, cardData);
+
+    // Update column to include card if needed
+    const column = data.columns.get(card.columnId);
+    if (column && !column.cardIds.includes(card.id)) {
+      column.cardIds.push(card.id);
+      data.columns.set(card.columnId, column);
+    }
+
+    await this.saveData(data);
+  }
+
+  public async getCard(id: string): Promise<Card | null> {
+    const data = this.getData();
+    const cardData = data.cards.get(id);
+
+    if (!cardData) {
+      return null;
+    }
+
+    const sharedCard: SharedCard = {
+      id: cardData.id,
+      title: cardData.title,
+      description: cardData.description,
+      labels: cardData.labels,
+      assignee: cardData.assignee,
+      columnId: cardData.columnId,
+      boardId: cardData.boardId,
+      order: cardData.order,
+      createdAt: cardData.createdAt,
+      updatedAt: cardData.updatedAt,
+    };
+
+    return convertToApiCard(sharedCard);
+  }
+
+  public async getCards(columnId: string): Promise<Card[]> {
+    const data = this.getData();
+    const column = data.columns.get(columnId);
+
+    if (!column) {
+      return [];
+    }
+
+    const cards: Card[] = [];
+
+    for (const cardId of column.cardIds) {
+      const card = await this.getCard(cardId);
+      if (card) {
+        cards.push(card);
+      }
+    }
+
+    return cards;
+  }
+
+  public async deleteCard(id: string): Promise<void> {
+    const data = this.getData();
+    const card = data.cards.get(id);
+
+    if (!card) {
+      return;
+    }
+
+    // Remove card
+    data.cards.delete(id);
+
+    // Update column to remove card reference
+    const column = data.columns.get(card.columnId);
+    if (column) {
+      column.cardIds = column.cardIds.filter((cId) => cId !== id);
+      data.columns.set(card.columnId, column);
+    }
+
+    await this.saveData(data);
+  }
+
+  public async moveCard(cardId: string, newColumnId: string): Promise<void> {
+    const data = this.getData();
+    const card = data.cards.get(cardId);
+    const newColumn = data.columns.get(newColumnId);
+
+    if (!card || !newColumn) {
+      return;
+    }
+
+    // Remove from old column
+    const oldColumn = data.columns.get(card.columnId);
+    if (oldColumn) {
+      oldColumn.cardIds = oldColumn.cardIds.filter((cId) => cId !== cardId);
+      data.columns.set(card.columnId, oldColumn);
+    }
+
+    // Add to new column
+    if (!newColumn.cardIds.includes(cardId)) {
+      newColumn.cardIds.push(cardId);
+    }
+
+    // Update card
+    card.columnId = newColumnId;
+
+    data.cards.set(cardId, card);
+    data.columns.set(newColumnId, newColumn);
+
+    await this.saveData(data);
+  }
+
+  public async clear(): Promise<void> {
+    await this.saveData({
+      boards: new Map(),
+      columns: new Map(),
+      cards: new Map(),
+    });
+  }
+
+  public async load(): Promise<void> {
+    // Already handled by getData()
+    this.getData();
+  }
+
+  public async save(): Promise<void> {
+    // Just ensure any pending saves are processed
+    if (this.saveQueue.length > 0) {
+      await this.processSaveQueue();
+    }
   }
 }

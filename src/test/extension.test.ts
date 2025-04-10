@@ -6,18 +6,19 @@ import * as vscode from "vscode";
 // import * as myExtension from '../../extension';
 import { BoardStorage } from "../handlers/board/board-storage";
 import {
-  Board,
-  Column,
-  Card,
+  Board as SharedBoard,
+  Column as SharedColumn,
+  Card as SharedCard,
   STORAGE_KEYS,
   isBoardMetadata,
   isColumnData,
   isCardData,
 } from "../shared/types";
+import { convertToModelBoard } from "../utils/type-conversions";
 
 suite("Extension Test Suite", () => {
   let boardStorage: BoardStorage;
-  let testBoard: Board;
+  let testBoard: SharedBoard;
   let extensionContext: vscode.ExtensionContext;
   let mockStorage: Map<string, any>;
 
@@ -111,7 +112,7 @@ suite("Extension Test Suite", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    await boardStorage.saveBoard(testBoard);
+    await boardStorage.saveBoard(convertToModelBoard(testBoard));
   });
 
   suiteTeardown(async () => {
@@ -126,7 +127,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should save and retrieve a board", async () => {
-      const board: Board = {
+      const board: SharedBoard = {
         id: "test-board-1",
         title: "Test Board",
         description: "Test Description",
@@ -135,7 +136,7 @@ suite("Extension Test Suite", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      await boardStorage.saveBoard(board);
+      await boardStorage.saveBoard(convertToModelBoard(board));
       const boards = await boardStorage.getBoards();
       const savedBoard = boards.find((b) => b.id === board.id);
 
@@ -158,7 +159,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should update a board", async () => {
-      const board: Board = {
+      const board: SharedBoard = {
         id: "test-board-2",
         title: "Original Title",
         description: "Original Description",
@@ -167,10 +168,10 @@ suite("Extension Test Suite", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      await boardStorage.saveBoard(board);
+      await boardStorage.saveBoard(convertToModelBoard(board));
       board.title = "Updated Title";
       board.description = "Updated Description";
-      await boardStorage.saveBoard(board);
+      await boardStorage.saveBoard(convertToModelBoard(board));
 
       const boards = await boardStorage.getBoards();
       const updatedBoard = boards.find((b) => b.id === board.id);
@@ -188,7 +189,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should delete a board", async () => {
-      const board: Board = {
+      const board: SharedBoard = {
         id: "test-board-3",
         title: "Board to Delete",
         description: "Will be deleted",
@@ -197,7 +198,7 @@ suite("Extension Test Suite", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      await boardStorage.saveBoard(board);
+      await boardStorage.saveBoard(convertToModelBoard(board));
       await boardStorage.deleteBoard(board.id);
 
       const boards = await boardStorage.getBoards();
@@ -208,7 +209,7 @@ suite("Extension Test Suite", () => {
   });
 
   suite("Column Operations Tests", () => {
-    let testBoard: Board;
+    let testBoard: SharedBoard;
 
     setup(async () => {
       testBoard = {
@@ -219,11 +220,11 @@ suite("Extension Test Suite", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
     });
 
     test("should add a column to a board", async () => {
-      const column: Column = {
+      const column: SharedColumn = {
         id: "test-column-1",
         title: "Test Column",
         cards: [],
@@ -233,7 +234,7 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns.push(column);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const boards = await boardStorage.getBoards();
       const boardWithColumn = boards.find((b) => b.id === testBoard.id);
@@ -251,7 +252,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should update a column", async () => {
-      const column: Column = {
+      const column: SharedColumn = {
         id: "test-column-2",
         title: "Original Column",
         cards: [],
@@ -261,10 +262,10 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns.push(column);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       testBoard.columns[0].title = "Updated Column";
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const boards = await boardStorage.getBoards();
       const boardWithUpdatedColumn = boards.find((b) => b.id === testBoard.id);
@@ -277,7 +278,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should remove a column", async () => {
-      const column: Column = {
+      const column: SharedColumn = {
         id: "test-column-3",
         title: "Column to Remove",
         cards: [],
@@ -287,10 +288,10 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns.push(column);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       testBoard.columns = [];
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const boards = await boardStorage.getBoards();
       const boardWithoutColumn = boards.find((b) => b.id === testBoard.id);
@@ -304,8 +305,8 @@ suite("Extension Test Suite", () => {
   });
 
   suite("Card Operations Tests", () => {
-    let testBoard: Board;
-    let testColumn: Column;
+    let testBoard: SharedBoard;
+    let testColumn: SharedColumn;
 
     setup(async () => {
       testBoard = {
@@ -327,7 +328,7 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns.push(testColumn);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
     });
 
     teardown(async () => {
@@ -336,7 +337,7 @@ suite("Extension Test Suite", () => {
     });
 
     test("should add a card to a column", async () => {
-      const card: Card = {
+      const card: SharedCard = {
         id: "test-card-1",
         title: "Test Card",
         description: "Test Description",
@@ -350,25 +351,25 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns[0].cards.push(card);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const boards = await boardStorage.getBoards();
       const boardWithCard = boards.find((b) => b.id === testBoard.id);
 
       assert.strictEqual(
-        boardWithCard?.columns[0].cards.length,
+        boardWithCard?.columns[0]?.cards?.length,
         1,
         "Column should have one card"
       );
       assert.strictEqual(
-        boardWithCard?.columns[0].cards[0].title,
+        boardWithCard?.columns[0]?.cards?.[0]?.title,
         "Test Card",
         "Card title should match"
       );
     });
 
     test("should update a card", async () => {
-      const card: Card = {
+      const card: SharedCard = {
         id: "test-card-2",
         title: "Original Card",
         description: "Original Description",
@@ -382,23 +383,23 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns[0].cards.push(card);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       testBoard.columns[0].cards[0].title = "Updated Card";
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const boards = await boardStorage.getBoards();
       const boardWithUpdatedCard = boards.find((b) => b.id === testBoard.id);
 
       assert.strictEqual(
-        boardWithUpdatedCard?.columns[0].cards[0].title,
+        boardWithUpdatedCard?.columns[0]?.cards?.[0]?.title,
         "Updated Card",
         "Card title should be updated"
       );
     });
 
     test("should remove a card", async () => {
-      const card: Card = {
+      const card: SharedCard = {
         id: "test-card-3",
         title: "Card to Remove",
         description: "Will be removed",
@@ -412,16 +413,16 @@ suite("Extension Test Suite", () => {
       };
 
       testBoard.columns[0].cards.push(card);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       testBoard.columns[0].cards = [];
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const boards = await boardStorage.getBoards();
       const boardWithoutCard = boards.find((b) => b.id === testBoard.id);
 
       assert.strictEqual(
-        boardWithoutCard?.columns[0].cards.length,
+        boardWithoutCard?.columns[0]?.cards?.length,
         0,
         "Column should have no cards"
       );
@@ -441,7 +442,7 @@ suite("Extension Test Suite", () => {
 
     test("should handle invalid board data", async () => {
       try {
-        await boardStorage.saveBoard({} as Board);
+        await boardStorage.saveBoard(convertToModelBoard({} as SharedBoard));
         assert.fail("Should have thrown an error for invalid board data");
       } catch (error) {
         assert.ok(error instanceof Error, "Should throw an error");
@@ -558,7 +559,7 @@ suite("Extension Test Suite", () => {
 
   suite("Storage Queue Tests", () => {
     test("should process save queue", async () => {
-      const board1: Board = {
+      const board1: SharedBoard = {
         id: "queue-test-1",
         title: "Queue Test 1",
         description: "Test Description",
@@ -567,7 +568,7 @@ suite("Extension Test Suite", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      const board2: Board = {
+      const board2: SharedBoard = {
         id: "queue-test-2",
         title: "Queue Test 2",
         description: "Test Description",
@@ -576,15 +577,15 @@ suite("Extension Test Suite", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      await boardStorage.saveBoard(board1);
-      await boardStorage.saveBoard(board2);
+      await boardStorage.saveBoard(convertToModelBoard(board1));
+      await boardStorage.saveBoard(convertToModelBoard(board2));
 
       const boards = await boardStorage.getBoards();
       assert.strictEqual(boards.length, 2, "Should save both boards");
     });
 
     test("should handle concurrent saves", async () => {
-      const board: Board = {
+      const board: SharedBoard = {
         id: "concurrent-test",
         title: "Concurrent Test",
         description: "Test Description",
@@ -595,7 +596,7 @@ suite("Extension Test Suite", () => {
 
       const savePromises = Array(5)
         .fill(null)
-        .map(() => boardStorage.saveBoard(board));
+        .map(() => boardStorage.saveBoard(convertToModelBoard(board)));
       await Promise.all(savePromises);
 
       const boards = await boardStorage.getBoards();

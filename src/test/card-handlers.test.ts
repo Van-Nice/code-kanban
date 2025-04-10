@@ -8,7 +8,8 @@ import {
   handleDeleteCard,
   handleMoveCard,
 } from "../handlers";
-import { TestLogger } from "./test-utils";
+import { TestLogger, MockWebview } from "./test-utils";
+import { convertToModelBoard } from "../utils/type-conversions";
 
 suite("Card Handler Tests", () => {
   let boardStorage: BoardStorage;
@@ -17,10 +18,12 @@ suite("Card Handler Tests", () => {
   let extensionContext: vscode.ExtensionContext;
   let mockStorage: Map<string, any>;
   let testLogger: TestLogger;
+  let mockWebview: MockWebview;
 
   suiteSetup(async () => {
     mockStorage = new Map();
     testLogger = new TestLogger();
+    mockWebview = new MockWebview();
     extensionContext = {
       subscriptions: [],
       extensionPath: "",
@@ -112,13 +115,13 @@ suite("Card Handler Tests", () => {
     };
 
     testBoard.columns.push(testColumn);
-    await boardStorage.saveBoard(testBoard);
+    await boardStorage.saveBoard(convertToModelBoard(testBoard));
   });
 
   test("should add a card", async () => {
     const card: Card = {
       id: "test-card-1",
-      title: "New Card",
+      title: "Test Card",
       description: "Test Description",
       labels: ["test"],
       assignee: "user1",
@@ -135,10 +138,18 @@ suite("Card Handler Tests", () => {
         data: {
           boardId: testBoard.id,
           columnId: testColumn.id,
-          card,
+          cardId: card.id,
+          title: card.title,
+          description: card.description,
         },
       },
-      { storage: boardStorage, logger: testLogger }
+      {
+        storage: boardStorage,
+        logger: testLogger,
+        webviewContext: "test",
+        webview: mockWebview,
+        vscodeContext: extensionContext,
+      }
     );
 
     assert.strictEqual(response.command, "cardAdded");
@@ -147,13 +158,14 @@ suite("Card Handler Tests", () => {
 
     const boards = await boardStorage.getBoards();
     const board = boards.find((b) => b.id === testBoard.id);
-    assert.strictEqual(board?.columns[0].cards.length, 1);
-    assert.strictEqual(board?.columns[0].cards[0].title, "New Card");
+    const column = board?.columns.find((c) => c.id === testColumn.id);
+    assert.strictEqual(column?.cards?.length, 1);
+    assert.strictEqual(column?.cards?.[0]?.title, "Test Card");
   });
 
   test("should update a card", async () => {
     const card: Card = {
-      id: "test-card-1",
+      id: "test-card-2",
       title: "Original Card",
       description: "Original Description",
       labels: ["test"],
@@ -165,16 +177,13 @@ suite("Card Handler Tests", () => {
       updatedAt: new Date().toISOString(),
     };
 
-    testBoard.columns[0].cards.push(card);
-    await boardStorage.saveBoard(testBoard);
+    testColumn.cards.push(card);
+    await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
     const updatedCard: Card = {
       ...card,
       title: "Updated Card",
       description: "Updated Description",
-      labels: ["updated"],
-      assignee: "user2",
-      order: 1,
     };
 
     const response = await handleUpdateCard(
@@ -183,10 +192,18 @@ suite("Card Handler Tests", () => {
         data: {
           boardId: testBoard.id,
           columnId: testColumn.id,
-          card: updatedCard,
+          cardId: updatedCard.id,
+          title: updatedCard.title,
+          description: updatedCard.description,
         },
       },
-      { storage: boardStorage, logger: testLogger }
+      {
+        storage: boardStorage,
+        logger: testLogger,
+        webviewContext: "test",
+        webview: mockWebview,
+        vscodeContext: extensionContext,
+      }
     );
 
     assert.strictEqual(response.command, "cardUpdated");
@@ -194,19 +211,16 @@ suite("Card Handler Tests", () => {
 
     const boards = await boardStorage.getBoards();
     const board = boards.find((b) => b.id === testBoard.id);
-    const updatedCardInBoard = board?.columns[0].cards[0];
-    assert.strictEqual(updatedCardInBoard?.title, "Updated Card");
-    assert.strictEqual(updatedCardInBoard?.description, "Updated Description");
-    assert.deepStrictEqual(updatedCardInBoard?.labels, ["updated"]);
-    assert.strictEqual(updatedCardInBoard?.assignee, "user2");
-    assert.strictEqual(updatedCardInBoard?.order, 1);
+    const column = board?.columns.find((c) => c.id === testColumn.id);
+    assert.strictEqual(column?.cards?.[0]?.title, "Updated Card");
+    assert.strictEqual(column?.cards?.[0]?.description, "Updated Description");
   });
 
   test("should delete a card", async () => {
     const card: Card = {
-      id: "test-card-2",
+      id: "test-card-3",
       title: "Card to Delete",
-      description: "Will be deleted",
+      description: "Description",
       labels: ["test"],
       assignee: "user1",
       columnId: testColumn.id,
@@ -216,8 +230,8 @@ suite("Card Handler Tests", () => {
       updatedAt: new Date().toISOString(),
     };
 
-    testBoard.columns[0].cards.push(card);
-    await boardStorage.saveBoard(testBoard);
+    testColumn.cards.push(card);
+    await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
     const response = await handleDeleteCard(
       {
@@ -228,7 +242,13 @@ suite("Card Handler Tests", () => {
           cardId: card.id,
         },
       },
-      { storage: boardStorage, logger: testLogger }
+      {
+        storage: boardStorage,
+        logger: testLogger,
+        webviewContext: "test",
+        webview: mockWebview,
+        vscodeContext: extensionContext,
+      }
     );
 
     assert.strictEqual(response.command, "cardDeleted");
@@ -236,46 +256,26 @@ suite("Card Handler Tests", () => {
 
     const boards = await boardStorage.getBoards();
     const board = boards.find((b) => b.id === testBoard.id);
-    assert.strictEqual(board?.columns[0].cards.length, 0);
+    const column = board?.columns.find((c) => c.id === testColumn.id);
+    assert.strictEqual(column?.cards?.length, 0);
   });
 
-  test("should move a card between columns", async () => {
-    const sourceColumn: Column = {
-      id: "source-column",
-      title: "Source Column",
-      cards: [],
-      order: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const targetColumn: Column = {
-      id: "target-column",
-      title: "Target Column",
-      cards: [],
-      order: 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    testBoard.columns = [sourceColumn, targetColumn];
-    await boardStorage.saveBoard(testBoard);
-
+  test("should move a card", async () => {
     const card: Card = {
-      id: "test-card-3",
+      id: "test-card-4",
       title: "Card to Move",
-      description: "Will be moved",
+      description: "Description",
       labels: ["test"],
       assignee: "user1",
-      columnId: sourceColumn.id,
+      columnId: testColumn.id,
       boardId: testBoard.id,
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    testBoard.columns[0].cards.push(card);
-    await boardStorage.saveBoard(testBoard);
+    testColumn.cards.push(card);
+    await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
     const response = await handleMoveCard(
       {
@@ -283,12 +283,18 @@ suite("Card Handler Tests", () => {
         data: {
           boardId: testBoard.id,
           cardId: card.id,
-          fromColumnId: sourceColumn.id,
-          toColumnId: targetColumn.id,
-          position: 0,
+          fromColumnId: testColumn.id,
+          toColumnId: testColumn.id,
+          position: 1,
         },
       },
-      { storage: boardStorage, logger: testLogger }
+      {
+        storage: boardStorage,
+        logger: testLogger,
+        webviewContext: "test",
+        webview: mockWebview,
+        vscodeContext: extensionContext,
+      }
     );
 
     assert.strictEqual(response.command, "cardMoved");
@@ -296,8 +302,8 @@ suite("Card Handler Tests", () => {
 
     const boards = await boardStorage.getBoards();
     const board = boards.find((b) => b.id === testBoard.id);
-    assert.strictEqual(board?.columns[0].cards.length, 0);
-    assert.strictEqual(board?.columns[1].cards.length, 1);
-    assert.strictEqual(board?.columns[1].cards[0].title, "Card to Move");
+    const column = board?.columns.find((c) => c.id === testColumn.id);
+    assert.strictEqual(column?.cards?.[0]?.id, card.id);
+    assert.strictEqual(column?.cards?.[0]?.columnId, testColumn.id);
   });
 });

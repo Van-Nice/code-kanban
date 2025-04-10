@@ -9,7 +9,8 @@ import {
   handleOpenBoardInEditor,
   handleShowErrorMessage,
 } from "../handlers";
-import { TestLogger } from "./test-utils";
+import { TestLogger, MockWebview } from "./test-utils";
+import { convertToModelBoard } from "../utils/type-conversions";
 
 suite("Message Handler Tests", () => {
   let boardStorage: BoardStorage;
@@ -17,10 +18,12 @@ suite("Message Handler Tests", () => {
   let extensionContext: vscode.ExtensionContext;
   let mockStorage: Map<string, any>;
   let testLogger: TestLogger;
+  let mockWebview: MockWebview;
 
   suiteSetup(async () => {
     mockStorage = new Map();
     testLogger = new TestLogger();
+    mockWebview = new MockWebview();
     extensionContext = {
       subscriptions: [],
       extensionPath: "",
@@ -101,7 +104,7 @@ suite("Message Handler Tests", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    await boardStorage.saveBoard(testBoard);
+    await boardStorage.saveBoard(convertToModelBoard(testBoard));
   });
 
   suite("Column Handler Tests", () => {
@@ -120,10 +123,17 @@ suite("Message Handler Tests", () => {
           command: "addColumn",
           data: {
             boardId: testBoard.id,
-            column,
+            columnId: column.id,
+            title: column.title,
           },
         },
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "columnAdded");
@@ -147,7 +157,7 @@ suite("Message Handler Tests", () => {
       };
 
       testBoard.columns.push(column);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const updatedColumn: Column = {
         ...column,
@@ -160,10 +170,17 @@ suite("Message Handler Tests", () => {
           command: "updateColumn",
           data: {
             boardId: testBoard.id,
-            column: updatedColumn,
+            columnId: updatedColumn.id,
+            title: updatedColumn.title,
           },
         },
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "columnUpdated");
@@ -172,7 +189,7 @@ suite("Message Handler Tests", () => {
       const boards = await boardStorage.getBoards();
       const board = boards.find((b) => b.id === testBoard.id);
       assert.strictEqual(board?.columns[0].title, "Updated Column");
-      assert.strictEqual(board?.columns[0].order, 1);
+      assert.strictEqual(board?.columns.length, 1);
     });
 
     test("should delete a column", async () => {
@@ -186,7 +203,7 @@ suite("Message Handler Tests", () => {
       };
 
       testBoard.columns.push(column);
-      await boardStorage.saveBoard(testBoard);
+      await boardStorage.saveBoard(convertToModelBoard(testBoard));
 
       const response = await handleDeleteColumn(
         {
@@ -196,7 +213,13 @@ suite("Message Handler Tests", () => {
             columnId: column.id,
           },
         },
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "columnDeleted");
@@ -217,7 +240,13 @@ suite("Message Handler Tests", () => {
             boardId: testBoard.id,
           },
         },
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "boardOpenedInEditor");
@@ -233,7 +262,13 @@ suite("Message Handler Tests", () => {
             boardId: "non-existent-id",
           },
         },
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "boardOpenedInEditor");
@@ -247,7 +282,13 @@ suite("Message Handler Tests", () => {
           command: "openBoardInEditor",
           data: {},
         } as any,
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "boardOpenedInEditor");
@@ -265,7 +306,13 @@ suite("Message Handler Tests", () => {
             message: "Test error message",
           },
         },
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "errorMessageShown");
@@ -279,7 +326,13 @@ suite("Message Handler Tests", () => {
           command: "showErrorMessage",
           data: {},
         } as any,
-        { storage: boardStorage, logger: testLogger }
+        {
+          storage: boardStorage,
+          logger: testLogger,
+          webviewContext: "test",
+          webview: mockWebview,
+          vscodeContext: extensionContext,
+        }
       );
 
       assert.strictEqual(response.command, "errorMessageShown");

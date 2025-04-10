@@ -1,21 +1,29 @@
-import { GetBoardsMessage, BoardsLoadedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
+import { BoardsLoadedResponse } from "../messages";
 
 export async function handleGetBoards(
-  message: GetBoardsMessage,
+  _message: any,
   context: HandlerContext
 ): Promise<BoardsLoadedResponse> {
-  const { storage, logger } = context;
+  const { storage } = context;
 
-  logger.debug("Getting all boards");
-  const boards = await storage.getBoards();
-  logger.debug(`Found ${boards.length} boards`);
-
-  return {
-    command: "boardsLoaded",
-    data: {
-      success: true,
-      boards,
-    },
-  };
+  try {
+    const boards = await storage.getBoards();
+    return {
+      command: "boardsLoaded",
+      data: {
+        success: true,
+        boards,
+      },
+    };
+  } catch (error) {
+    return {
+      command: "boardsLoaded",
+      data: {
+        success: false,
+        boards: [],
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
 }

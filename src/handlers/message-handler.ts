@@ -2,8 +2,9 @@ import * as vscode from "vscode";
 import {
   WebviewMessage,
   ResponseMessage,
-  UpdateCardMessage,
-  ColumnDeletedResponse,
+  WebviewResponse,
+  LogMessage,
+  ErrorMessage,
 } from "./messages";
 import { Logger } from "./logger";
 import { BoardStorage } from "./board/board-storage";
@@ -17,29 +18,13 @@ export interface HandlerContext {
   vscodeContext: vscode.ExtensionContext;
 }
 
-type HandlerFunction<T extends WebviewMessage = WebviewMessage> = (
-  message: T,
-  context: HandlerContext
-) => Promise<ResponseMessage | UpdateCardMessage | void>;
+export interface HandlerFunction<T> {
+  (message: T, context: HandlerContext): Promise<WebviewResponse | void>;
+}
 
-const handlerMap: { [command: string]: HandlerFunction<any> } = {
-  log: handlers.handleLog,
-  error: handlers.handleError,
-  getBoards: handlers.handleGetBoards,
-  getBoard: handlers.handleGetBoard,
-  createBoard: handlers.handleCreateBoard,
-  deleteBoard: handlers.handleDeleteBoard,
-  updateBoard: handlers.handleUpdateBoard,
-  addCard: handlers.handleAddCard,
-  updateCard: handlers.handleUpdateCard,
-  deleteCard: handlers.handleDeleteCard,
-  moveCard: handlers.handleMoveCard,
-  addColumn: handlers.handleAddColumn,
-  updateColumn: handlers.handleUpdateColumn,
-  deleteColumn: handlers.handleDeleteColumn,
-  openBoardInEditor: handlers.handleOpenBoardInEditor,
-  showErrorMessage: handlers.handleShowErrorMessage,
-};
+export abstract class MessageHandlerBase<T, R extends WebviewResponse> {
+  abstract handle(message: T, context: HandlerContext): Promise<R>;
+}
 
 export class MessageHandler {
   private webview: vscode.Webview;
@@ -110,7 +95,7 @@ export class MessageHandler {
 
   public sendMessage(message: ResponseMessage | WebviewMessage): void {
     if (message.command === "cardUpdated") {
-      const cardResponse = message as any; // Adjust type as needed
+      const cardResponse = message as any;
       console.log(
         "🟢 RESPONSE: Sending cardUpdated response to webview:",
         JSON.stringify(cardResponse.data, null, 2)
@@ -128,7 +113,7 @@ export class MessageHandler {
       }
       return;
     } else if (message.command === "columnDeleted") {
-      const columnResponse = message as ColumnDeletedResponse;
+      const columnResponse = message as any;
       console.log(
         "🟢 RESPONSE: Sending columnDeleted response to webview:",
         JSON.stringify(columnResponse.data, null, 2)
@@ -149,3 +134,22 @@ export class MessageHandler {
     this.webview.postMessage(message);
   }
 }
+
+const handlerMap: { [command: string]: HandlerFunction<any> } = {
+  log: handlers.handleLog,
+  error: handlers.handleError,
+  getBoards: handlers.handleGetBoards,
+  getBoard: handlers.handleGetBoard,
+  createBoard: handlers.handleCreateBoard,
+  deleteBoard: handlers.handleDeleteBoard,
+  updateBoard: handlers.handleUpdateBoard,
+  addCard: handlers.handleAddCard,
+  updateCard: handlers.handleUpdateCard,
+  deleteCard: handlers.handleDeleteCard,
+  moveCard: handlers.handleMoveCard,
+  addColumn: handlers.handleAddColumn,
+  updateColumn: handlers.handleUpdateColumn,
+  deleteColumn: handlers.handleDeleteColumn,
+  openBoardInEditor: handlers.handleOpenBoardInEditor,
+  showErrorMessage: handlers.handleShowErrorMessage,
+};

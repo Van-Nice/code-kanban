@@ -1,4 +1,4 @@
-import { Board, Column, Card } from "./types";
+import { Board, Column, Card } from "../models/board";
 
 export interface WebviewMessageBase {
   command: string;
@@ -16,6 +16,7 @@ export interface ErrorMessage extends WebviewMessageBase {
 
 export interface GetBoardsMessage extends WebviewMessageBase {
   command: "getBoards";
+  data?: {}; // Make data optional/empty object
 }
 
 export interface GetBoardMessage extends WebviewMessageBase {
@@ -44,7 +45,9 @@ export interface AddCardMessage extends WebviewMessageBase {
   data: {
     boardId: string;
     columnId: string;
-    card: Card;
+    cardId?: string;
+    title: string;
+    description: string;
   };
 }
 
@@ -53,7 +56,9 @@ export interface UpdateCardMessage extends WebviewMessageBase {
   data: {
     boardId: string;
     columnId: string;
-    card: Card;
+    cardId: string;
+    title: string;
+    description: string;
   };
 }
 
@@ -91,7 +96,8 @@ export interface AddColumnMessage extends WebviewMessageBase {
   command: "addColumn";
   data: {
     boardId: string;
-    column: Column;
+    columnId?: string;
+    title: string;
   };
 }
 
@@ -99,7 +105,8 @@ export interface UpdateColumnMessage extends WebviewMessageBase {
   command: "updateColumn";
   data: {
     boardId: string;
-    column: Column;
+    columnId: string;
+    title: string;
   };
 }
 
@@ -115,7 +122,16 @@ export interface UpdateBoardMessage extends WebviewMessageBase {
   command: "updateBoard";
   data: {
     boardId: string;
-    columns: Column[];
+    title: string;
+  };
+}
+
+export interface BoardUpdatedResponse {
+  command: "boardUpdated";
+  data: {
+    success: boolean;
+    board?: Board;
+    error?: string;
   };
 }
 
@@ -208,8 +224,9 @@ export interface CardDeletedResponse extends ResponseMessageBase {
   command: "cardDeleted";
   data: {
     success: boolean;
-    cardId?: string;
+    boardId?: string;
     columnId?: string;
+    cardId?: string;
     error?: string;
   };
 }
@@ -218,15 +235,15 @@ export interface CardMovedResponse extends ResponseMessageBase {
   command: "cardMoved";
   data: {
     success: boolean;
-    cardId?: string;
-    fromColumnId?: string;
-    toColumnId?: string;
-    card?: Card;
+    boardId: string;
+    cardId: string;
+    fromColumnId: string;
+    toColumnId: string;
     error?: string;
   };
 }
 
-export interface ColumnResponse extends WebviewMessageBase {
+export interface ColumnResponse extends ResponseMessageBase {
   command: "columnUpdated" | "columnAdded";
   data: {
     success: boolean;
@@ -261,3 +278,84 @@ export type ResponseMessage =
   | ColumnResponse
   | ColumnDeletedResponse
   | ResponseMessageBase;
+
+export interface WebviewResponse {
+  command: string;
+  data: any;
+}
+
+export interface BoardAddedResponse {
+  command: "boardAdded";
+  data: {
+    success: boolean;
+    board?: Board;
+    error?: string;
+  };
+}
+
+export interface ColumnAddedResponse {
+  command: "columnAdded";
+  data: {
+    success: boolean;
+    boardId: string;
+    column?: Column;
+    error?: string;
+  };
+}
+
+export interface ColumnUpdatedResponse {
+  command: "columnUpdated";
+  data: {
+    success: boolean;
+    boardId: string;
+    column?: Column;
+    error?: string;
+  };
+}
+
+export interface CardAddedResponse {
+  command: "cardAdded";
+  data: {
+    success: boolean;
+    boardId: string;
+    columnId: string;
+    card?: Card;
+    error?: string;
+  };
+}
+
+export interface CardUpdatedResponse {
+  command: "cardUpdated";
+  data: {
+    success: boolean;
+    boardId: string;
+    columnId: string;
+    card?: Card;
+    error?: string;
+  };
+}
+
+export interface OpenBoardMessage extends WebviewMessageBase {
+  command: "openBoard";
+  data: {
+    boardId: string;
+  };
+}
+
+export interface BoardOpenedResponse {
+  command: "boardOpened";
+  data: {
+    success: boolean;
+    board?: Board;
+    error?: string;
+  };
+}
+
+export interface BoardsRetrievedResponse {
+  command: "boardsRetrieved";
+  data: {
+    success: boolean;
+    boards?: Board[];
+    error?: string;
+  };
+}

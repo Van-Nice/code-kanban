@@ -1,8 +1,13 @@
 import { CreateBoardMessage, BoardCreatedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
-import { Board } from "../types";
-import { sanitizeString } from "../utils";
+import { Board } from "../board/board";
 import { v4 as uuidv4 } from "uuid";
+import { convertToModelBoard } from "../../utils/type-conversions";
+
+// Generate a unique ID using uuid
+function generateId(): string {
+  return uuidv4();
+}
 
 export async function handleCreateBoard(
   message: CreateBoardMessage,
@@ -10,78 +15,38 @@ export async function handleCreateBoard(
 ): Promise<BoardCreatedResponse> {
   const { storage, logger } = context;
 
-  if (!message.data?.id || !message.data?.title) {
+  // Validate required fields
+  if (!message.data?.title) {
     logger.error("Missing required fields for board creation");
     return {
       command: "boardCreated",
       data: {
         success: false,
-        error: "Missing required fields: id or title",
+        error: "Missing required fields: title",
       },
     };
   }
 
-  const sanitizedTitle = sanitizeString(message.data.title, 100);
-  const sanitizedDescription = sanitizeString(
-    message.data.description || "",
-    500
-  );
-
-  const newBoard: Board = {
-    ...message.data,
-    title: sanitizedTitle,
-    description: sanitizedDescription,
-    columns: [
-      {
-        id: uuidv4(),
-        title: "To Do",
-        cards: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        order: 0,
-      },
-      {
-        id: uuidv4(),
-        title: "In Progress",
-        cards: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        order: 1,
-      },
-      {
-        id: uuidv4(),
-        title: "Done",
-        cards: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        order: 2,
-      },
-    ],
-  };
-
   try {
-    const boards = await storage.getBoards();
+    // Create a new board
+    const newBoard: Board = {
+      id: message.data.id || generateId(),
+      title: message.data.title,
+      description: message.data.description || "",
+      columns: [],
+      createdAt: message.data.createdAt || new Date().toISOString(),
+      updatedAt: message.data.updatedAt || new Date().toISOString(),
+    };
 
-    // Check for existing board with same ID
-    if (boards.some((board) => board.id === newBoard.id)) {
-      logger.error(`Board with ID ${newBoard.id} already exists`);
-      return {
-        command: "boardCreated",
-        data: {
-          success: false,
-          error: `Board with ID ${newBoard.id} already exists`,
-        },
-      };
-    }
+    // Save the board
+    await storage.saveBoard(convertToModelBoard(newBoard));
 
-    await storage.saveBoard(newBoard);
-
-    logger.debug("Board created successfully:", newBoard);
+    logger.debug(`Board with ID ${newBoard.id} created successfully`);
     return {
       command: "boardCreated",
       data: {
         success: true,
-        board: newBoard,
+        board: convertToModelBoard(newBoard),
       },
     };
   } catch (error) {

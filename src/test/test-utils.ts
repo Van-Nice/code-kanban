@@ -1,12 +1,14 @@
 import { Logger } from "../handlers/logger";
+import * as vscode from "vscode";
 
-export class TestLogger implements Logger {
-  private enableDebug: boolean = true;
+export class TestLogger extends Logger {
+  constructor() {
+    super({ debug: true });
+  }
 
+  // Override methods to add test-specific logging behavior
   debug(message: string, ...args: any[]): void {
-    if (this.enableDebug) {
-      console.debug(`[DEBUG] ${message}`, ...args);
-    }
+    console.debug(`[DEBUG] ${message}`, ...args);
   }
 
   info(message: string, ...args: any[]): void {
@@ -21,7 +23,20 @@ export class TestLogger implements Logger {
     console.error(`[ERROR] ${message}`, ...args);
   }
 
-  log(message: string, data?: any): void {
+  log(_message: string, _data?: any): void {
     // No-op for tests
+  }
+}
+
+export class MockWebview implements vscode.Webview {
+  html: string = "";
+  options: vscode.WebviewOptions = {};
+  cspSource: string = "";
+  asWebviewUri(localResource: vscode.Uri): vscode.Uri {
+    return localResource;
+  }
+  onDidReceiveMessage = new vscode.EventEmitter<any>().event;
+  postMessage(_message: any): Thenable<boolean> {
+    return Promise.resolve(true);
   }
 }

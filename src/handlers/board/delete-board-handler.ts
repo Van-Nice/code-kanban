@@ -1,5 +1,6 @@
 import { DeleteBoardMessage, BoardDeletedResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
+import { Board } from "../../models/board";
 
 export async function handleDeleteBoard(
   message: DeleteBoardMessage,
@@ -8,12 +9,12 @@ export async function handleDeleteBoard(
   const { storage, logger } = context;
 
   if (!message.data?.boardId) {
-    logger.error("No board ID provided for deletion");
+    logger.error("Missing required fields for board deletion");
     return {
       command: "boardDeleted",
       data: {
         success: false,
-        error: "No board ID provided",
+        error: "Missing required field: boardId",
       },
     };
   }
@@ -23,9 +24,7 @@ export async function handleDeleteBoard(
     const boardIndex = boards.findIndex((b) => b.id === message.data.boardId);
 
     if (boardIndex === -1) {
-      logger.error(
-        `Board with ID ${message.data.boardId} not found for deletion`
-      );
+      logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
         command: "boardDeleted",
         data: {
@@ -35,14 +34,9 @@ export async function handleDeleteBoard(
       };
     }
 
-    // Remove the board and save
-    const updatedBoards = [
-      ...boards.slice(0, boardIndex),
-      ...boards.slice(boardIndex + 1),
-    ];
-    for (const board of updatedBoards) {
-      await storage.saveBoard(board);
-    }
+    // Remove the board
+    boards.splice(boardIndex, 1);
+    await storage.deleteBoard(message.data.boardId);
 
     logger.debug(`Board with ID ${message.data.boardId} deleted successfully`);
     return {
@@ -53,10 +47,7 @@ export async function handleDeleteBoard(
       },
     };
   } catch (error) {
-    logger.error(
-      `Error deleting board with ID ${message.data.boardId}:`,
-      error
-    );
+    logger.error("Error deleting board:", error);
     return {
       command: "boardDeleted",
       data: {
