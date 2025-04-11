@@ -10,7 +10,7 @@ import {
   Column as ModelColumn,
   Card as ModelCard,
 } from "../../models/board";
-import { Board, Column, Card } from "../board/board";
+import { Board, Column } from "../board/board";
 import { Logger } from "../logger";
 import * as vscode from "vscode";
 
@@ -89,10 +89,14 @@ export class MoveCardHandler extends MessageHandlerBase<
           description: c.description || "",
           columnId: c.columnId,
           boardId: board.id,
+          labels: (c as any).labels || [],
+          assignee: (c as any).assignee || "",
+          order: (c as any).order || 0,
           createdAt: new Date(c.createdAt),
           updatedAt: new Date(c.updatedAt),
         })),
         cardIds: col.cards?.map((c) => c.id) || [],
+        order: col.order || 0,
         createdAt: new Date(col.createdAt),
         updatedAt: new Date(col.updatedAt),
       })),
@@ -257,10 +261,14 @@ export async function handleMoveCard(
           description: c.description || "",
           columnId: c.columnId,
           boardId: board.id,
+          labels: (c as any).labels || [],
+          assignee: (c as any).assignee || "",
+          order: (c as any).order || 0,
           createdAt: new Date(c.createdAt),
           updatedAt: new Date(c.updatedAt),
         })),
         cardIds: col.cards?.map((c) => c.id) || [],
+        order: col.order || 0,
         createdAt: new Date(col.createdAt),
         updatedAt: new Date(col.updatedAt),
       })),

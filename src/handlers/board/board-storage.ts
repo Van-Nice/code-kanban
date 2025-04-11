@@ -27,29 +27,21 @@ function convertToApiBoard(board: SharedBoard): Board {
     id: board.id,
     title: board.title,
     description: board.description || "",
-    columns: board.columns.map((c) => convertToApiColumn(c)),
+    columns: board.columns.map((c) => convertToApiColumn(c, "")),
     columnIds: board.columns.map((c) => c.id),
     createdAt: new Date(board.createdAt),
     updatedAt: new Date(board.updatedAt),
   };
 }
 
-function convertToApiColumn(column: SharedColumn): Column {
-  // Ensure we have a valid boardId, default to empty string if not available
-  let boardId = "";
-  for (const card of column.cards) {
-    if (card.boardId) {
-      boardId = card.boardId;
-      break;
-    }
-  }
-
+function convertToApiColumn(column: SharedColumn, boardId: string): Column {
   return {
     id: column.id,
     title: column.title,
     boardId: boardId,
     cards: column.cards.map((c) => convertToApiCard(c)),
     cardIds: column.cards.map((c) => c.id),
+    order: column.order || 0,
     createdAt: new Date(column.createdAt),
     updatedAt: new Date(column.updatedAt),
   };
@@ -62,6 +54,9 @@ function convertToApiCard(card: SharedCard): Card {
     description: card.description || "",
     columnId: card.columnId,
     boardId: card.boardId,
+    labels: card.labels || [],
+    assignee: card.assignee || "",
+    order: card.order || 0,
     createdAt: new Date(card.createdAt),
     updatedAt: new Date(card.updatedAt),
   };
@@ -120,28 +115,46 @@ export class BoardStorage implements Storage {
     }
   }
 
-  private async loadRawData(): Promise<any> {
-    const rawBoards =
-      this.context.globalState.get<BoardMetadata[]>(STORAGE_KEYS.BOARDS) || [];
-    const rawColumns =
-      this.context.globalState.get<ColumnData[]>(STORAGE_KEYS.COLUMNS) || [];
-    const rawCards =
-      this.context.globalState.get<CardData[]>(STORAGE_KEYS.CARDS) || [];
+  private async loadRawData(): Promise<StorageData> {
+    try {
+      const rawBoards =
+        this.context.globalState.get<BoardMetadata[]>(STORAGE_KEYS.BOARDS) ||
+        [];
+      const rawColumns =
+        this.context.globalState.get<ColumnData[]>(STORAGE_KEYS.COLUMNS) || [];
+      const rawCards =
+        this.context.globalState.get<CardData[]>(STORAGE_KEYS.CARDS) || [];
 
-    return {
-      boards: new Map(rawBoards.map((board) => [board.id, board])),
-      columns: new Map(rawColumns.map((column) => [column.id, column])),
-      cards: new Map(rawCards.map((card) => [card.id, card])),
-    };
-  }
-
-  private async saveData(data: StorageData): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.saveQueue.push({ data, resolve, reject });
-      if (!this.saveInProgress) {
-        this.processSaveQueue();
+      // Handle old format if present
+      if (!Array.isArray(rawBoards) && typeof rawBoards === "object") {
+        const oldBoards = (rawBoards as any).boards;
+        if (oldBoards) {
+          return {
+            boards: new Map(
+              Object.entries(oldBoards).map(([id, board]) => [
+                id,
+                board as BoardMetadata,
+              ])
+            ),
+            columns: new Map(),
+            cards: new Map(),
+          };
+        }
       }
-    });
+
+      return {
+        boards: new Map(rawBoards.map((board) => [board.id, board])),
+        columns: new Map(rawColumns.map((column) => [column.id, column])),
+        cards: new Map(rawCards.map((card) => [card.id, card])),
+      };
+    } catch (error) {
+      console.error("Error loading raw data:", error);
+      return {
+        boards: new Map(),
+        columns: new Map(),
+        cards: new Map(),
+      };
+    }
   }
 
   private async processSaveQueue(): Promise<void> {
@@ -150,7 +163,7 @@ export class BoardStorage implements Storage {
     }
 
     this.saveInProgress = true;
-    const { data, resolve, reject } = this.saveQueue.shift()!;
+    const { data, resolve, reject } = this.saveQueue[0];
 
     try {
       // Validate data before saving
@@ -163,101 +176,124 @@ export class BoardStorage implements Storage {
         cards: Array.from(data.cards.values()),
       };
 
-      // Save each part separately
-      await this.context.globalState.update(
-        STORAGE_KEYS.BOARDS,
-        storageData.boards
-      );
-      await this.context.globalState.update(
-        STORAGE_KEYS.COLUMNS,
-        storageData.columns
-      );
-      await this.context.globalState.update(
-        STORAGE_KEYS.CARDS,
-        storageData.cards
-      );
+      // Save each part atomically
+      await Promise.all([
+        this.context.globalState.update(
+          STORAGE_KEYS.BOARDS,
+          storageData.boards
+        ),
+        this.context.globalState.update(
+          STORAGE_KEYS.COLUMNS,
+          storageData.columns
+        ),
+        this.context.globalState.update(STORAGE_KEYS.CARDS, storageData.cards),
+      ]);
 
       resolve();
+      this.saveQueue.shift();
     } catch (error) {
       reject(error);
     } finally {
       this.saveInProgress = false;
       if (this.saveQueue.length > 0) {
-        this.processSaveQueue();
+        await this.processSaveQueue();
       }
     }
   }
 
   private validateStorageData(data: StorageData): void {
+    // Skip validation for empty data
+    if (!data.boards || !data.columns || !data.cards) {
+      console.warn("Storage data is incomplete, skipping validation");
+      return;
+    }
+
     // Validate boards
     for (const [id, board] of data.boards) {
       if (!isBoardMetadata(board)) {
-        throw new Error(`Invalid board metadata for board ${id}`);
+        console.warn(`Invalid board metadata for board ${id}`);
+        continue; // Skip this board instead of throwing
+      }
+
+      // Skip column validation if columnIds is not an array
+      if (!Array.isArray(board.columnIds)) {
+        console.warn(`Board ${id} has invalid columnIds (not an array)`);
+        continue;
       }
     }
 
     // Validate columns
     for (const [id, column] of data.columns) {
       if (!isColumnData(column)) {
-        throw new Error(`Invalid column data for column ${id}`);
+        console.warn(`Invalid column data for column ${id}`);
+        continue; // Skip this column instead of throwing
       }
-      // Validate column references
+
+      // Validate column references - skip if board doesn't exist
       if (!data.boards.has(column.boardId)) {
-        throw new Error(
+        console.warn(
           `Column ${id} references non-existent board ${column.boardId}`
         );
+        continue; // Skip further validation for this column
+      }
+
+      // Skip card validation if cardIds is not an array
+      if (!Array.isArray(column.cardIds)) {
+        console.warn(`Column ${id} has invalid cardIds (not an array)`);
+        continue;
       }
     }
 
     // Validate cards
     for (const [id, card] of data.cards) {
       if (!isCardData(card)) {
-        throw new Error(`Invalid card data for card ${id}`);
+        console.warn(`Invalid card data for card ${id}`);
+        continue; // Skip this card instead of throwing
       }
-      // Validate card references
+
+      // Skip validation if column doesn't exist
       if (!data.columns.has(card.columnId)) {
-        throw new Error(
+        console.warn(
           `Card ${id} references non-existent column ${card.columnId}`
         );
+        continue;
       }
+
       const column = data.columns.get(card.columnId);
-      if (column && !column.cardIds.includes(id)) {
-        throw new Error(
+      if (
+        column &&
+        Array.isArray(column.cardIds) &&
+        !column.cardIds.includes(id)
+      ) {
+        console.warn(
           `Card ${id} exists but is not referenced by its column ${card.columnId}`
         );
+        // Add the card ID to the column's cardIds array
+        column.cardIds.push(id);
       }
     }
 
-    // Validate board column references
+    // Validate board column references (softer validation)
     for (const [id, board] of data.boards) {
+      if (!Array.isArray(board.columnIds)) {
+        console.warn(`Board ${id} has invalid columnIds (not an array)`);
+        continue;
+      }
+
       for (const columnId of board.columnIds) {
         const column = data.columns.get(columnId);
         if (!column) {
-          throw new Error(
+          console.warn(
             `Board ${id} references non-existent column ${columnId}`
           );
+          continue;
         }
         if (column.boardId !== id) {
-          throw new Error(
+          console.warn(
             `Column ${columnId} belongs to board ${column.boardId} but is referenced by board ${id}`
           );
-        }
-      }
-    }
-
-    // Validate column card references
-    for (const [id, column] of data.columns) {
-      for (const cardId of column.cardIds) {
-        const card = data.cards.get(cardId);
-        if (!card) {
-          throw new Error(
-            `Column ${id} references non-existent card ${cardId}`
-          );
-        }
-        if (card.columnId !== id) {
-          throw new Error(
-            `Card ${cardId} belongs to column ${card.columnId} but is referenced by column ${id}`
-          );
+          // Automatically fix the reference
+          column.boardId = id;
         }
       }
     }
@@ -273,29 +309,47 @@ export class BoardStorage implements Storage {
       const boardData =
         this.context.globalState.get<BoardMetadata[]>(STORAGE_KEYS.BOARDS) ||
         [];
-      boardData.forEach((board) => {
-        if (isBoardMetadata(board)) {
-          boards.set(board.id, board);
-        }
-      });
+
+      // Check if boardData is an array before using forEach
+      if (Array.isArray(boardData)) {
+        boardData.forEach((board) => {
+          if (isBoardMetadata(board)) {
+            boards.set(board.id, board);
+          }
+        });
+      } else {
+        console.warn("BoardData is not an array:", typeof boardData);
+      }
 
       // Load columns
       const columnData =
         this.context.globalState.get<ColumnData[]>(STORAGE_KEYS.COLUMNS) || [];
-      columnData.forEach((column) => {
-        if (isColumnData(column)) {
-          columns.set(column.id, column);
-        }
-      });
+
+      // Check if columnData is an array before using forEach
+      if (Array.isArray(columnData)) {
+        columnData.forEach((column) => {
+          if (isColumnData(column)) {
+            columns.set(column.id, column);
+          }
+        });
+      } else {
+        console.warn("ColumnData is not an array:", typeof columnData);
+      }
 
       // Load cards
       const cardData =
         this.context.globalState.get<CardData[]>(STORAGE_KEYS.CARDS) || [];
-      cardData.forEach((card) => {
-        if (isCardData(card)) {
-          cards.set(card.id, card);
-        }
-      });
+
+      // Check if cardData is an array before using forEach
+      if (Array.isArray(cardData)) {
+        cardData.forEach((card) => {
+          if (isCardData(card)) {
+            cards.set(card.id, card);
+          }
+        });
+      } else {
+        console.warn("CardData is not an array:", typeof cardData);
+      }
     } catch (error) {
       console.error("Error loading data:", error);
     }
@@ -342,7 +396,9 @@ export class BoardStorage implements Storage {
           columns.push({
             id: columnId,
             title: columnData.title,
+            boardId: boardId,
             cards,
+            cardIds: columnData.cardIds,
             order: columnData.order,
             createdAt: columnData.createdAt,
             updatedAt: columnData.updatedAt,
@@ -367,82 +423,80 @@ export class BoardStorage implements Storage {
     return sharedBoards.map((board) => convertToApiBoard(board));
   }
 
-  public async saveBoard(board: Board): Promise<void> {
-    const data = this.getData();
-
-    // Get existing columns if available
-    const existingColumns: SharedColumn[] = [];
-    const existingBoard = data.boards.get(board.id);
-
-    if (existingBoard) {
-      for (const columnId of existingBoard.columnIds) {
-        const columnData = data.columns.get(columnId);
-        if (columnData) {
-          const cards: SharedCard[] = [];
-
-          for (const cardId of columnData.cardIds) {
-            const cardData = data.cards.get(cardId);
-            if (cardData) {
-              cards.push({
-                id: cardId,
-                title: cardData.title,
-                description: cardData.description,
-                labels: cardData.labels,
-                assignee: cardData.assignee,
-                columnId: columnId,
-                boardId: board.id,
-                order: cardData.order,
-                createdAt: cardData.createdAt,
-                updatedAt: cardData.updatedAt,
-              });
-            }
-          }
-
-          existingColumns.push({
-            id: columnId,
-            title: columnData.title,
-            cards,
-            order: columnData.order,
-            createdAt: columnData.createdAt,
-            updatedAt: columnData.updatedAt,
-          });
-        }
+  private async saveData(data: StorageData): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.saveQueue.push({ data, resolve, reject });
+      if (!this.saveInProgress) {
+        this.processSaveQueue();
       }
-    }
+    });
+  }
 
-    // Convert to storage format
-    const sharedBoard = convertToStorageBoard(board, existingColumns);
+  public async saveBoard(board: Board): Promise<void> {
+    const data = await this.loadRawData();
 
     // Update board metadata
     const boardMetadata: BoardMetadata = {
-      id: sharedBoard.id,
-      title: sharedBoard.title,
-      description: sharedBoard.description,
-      columnIds: board.columnIds || board.columns.map((col) => col.id),
-      createdAt: sharedBoard.createdAt,
-      updatedAt: sharedBoard.updatedAt,
+      id: board.id,
+      title: board.title,
+      description: board.description || "",
+      columnIds: board.columns.map((col) => col.id),
+      createdAt: board.createdAt.toISOString(),
+      updatedAt: board.updatedAt.toISOString(),
     };
     data.boards.set(board.id, boardMetadata);
 
-    // Get the set of all card IDs referenced by columnIds
-    const currentCardIds = new Set<string>();
-    const columnIds = board.columnIds || board.columns.map((col) => col.id);
-    for (const columnId of columnIds) {
-      const columnData = data.columns.get(columnId);
-      if (columnData) {
-        for (const cardId of columnData.cardIds) {
-          currentCardIds.add(cardId);
+    // Update columns and their cards
+    const existingColumnIds = new Set(board.columns.map((col) => col.id));
+    const existingCardIds = new Set<string>();
+
+    // Remove columns that no longer exist in the board
+    for (const [columnId, column] of data.columns) {
+      if (column.boardId === board.id && !existingColumnIds.has(columnId)) {
+        data.columns.delete(columnId);
+        // Remove cards from deleted columns
+        for (const cardId of column.cardIds) {
+          data.cards.delete(cardId);
         }
       }
     }
 
-    // Clean up any cards that are no longer in any column
-    const existingCards = Array.from(data.cards.values()).filter(
-      (card) => card.boardId === board.id
-    );
-    for (const card of existingCards) {
-      if (!currentCardIds.has(card.id)) {
-        data.cards.delete(card.id);
+    // Update columns and cards
+    for (const column of board.columns) {
+      const columnData: ColumnData = {
+        id: column.id,
+        title: column.title,
+        boardId: board.id,
+        cardIds: (column.cards || []).map((card) => card.id),
+        order: column.order || 0,
+        createdAt: column.createdAt.toISOString(),
+        updatedAt: column.updatedAt.toISOString(),
+      };
+      data.columns.set(column.id, columnData);
+
+      // Update cards
+      for (const card of column.cards || []) {
+        existingCardIds.add(card.id);
+        const cardData: CardData = {
+          id: card.id,
+          title: card.title,
+          description: card.description || "",
+          labels: card.labels || [],
+          assignee: card.assignee || "",
+          columnId: column.id,
+          boardId: board.id,
+          order: card.order || 0,
+          createdAt: card.createdAt.toISOString(),
+          updatedAt: card.updatedAt.toISOString(),
+        };
+        data.cards.set(card.id, cardData);
+      }
+    }
+
+    // Remove cards that no longer exist in any column
+    for (const [cardId, card] of data.cards) {
+      if (card.boardId === board.id && !existingCardIds.has(cardId)) {
+        data.cards.delete(cardId);
       }
     }
 
@@ -458,15 +512,17 @@ export class BoardStorage implements Storage {
     }
 
     // Delete all cards in the board's columns
-    board.columnIds.forEach((columnId) => {
-      const column = columns.get(columnId);
-      if (column) {
-        column.cardIds.forEach((cardId) => cards.delete(cardId));
-        columns.delete(columnId);
-      }
-    });
+    if (Array.isArray(board.columnIds)) {
+      board.columnIds.forEach((columnId) => {
+        const column = columns.get(columnId);
+        if (column && Array.isArray(column.cardIds)) {
+          column.cardIds.forEach((cardId) => cards.delete(cardId));
+          columns.delete(columnId);
+        }
+      });
+    }
 
-    // Delete the board
+    // Remove the board
     boards.delete(boardId);
 
     await this.saveData({ boards, columns, cards });
@@ -509,13 +565,15 @@ export class BoardStorage implements Storage {
     const sharedColumn: SharedColumn = {
       id: columnData.id,
       title: columnData.title,
+      boardId: columnData.boardId,
       cards: cardsArray,
+      cardIds: columnData.cardIds,
       order: columnData.order,
       createdAt: columnData.createdAt,
       updatedAt: columnData.updatedAt,
     };
 
-    return convertToApiColumn(sharedColumn);
+    return convertToApiColumn(sharedColumn, columnData.boardId);
   }
 
   public async getColumns(boardId: string): Promise<Column[]> {

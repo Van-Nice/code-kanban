@@ -2,8 +2,12 @@ import { AddColumnMessage, ColumnResponse } from "../messages";
 import { HandlerContext } from "../message-handler";
 import { sanitizeString } from "../utils";
 import { v4 as uuidv4 } from "uuid";
-import { Board as HandlerBoard, Column as HandlerColumn } from "../board/board";
-import { Board as ModelBoard, Column as ModelColumn } from "../../models/board";
+import { Column as ModelColumn } from "../../models/board";
+import { Column as SharedColumn } from "../../shared/types";
+import {
+  convertToSharedColumn,
+  convertToModelColumn,
+} from "../../utils/type-conversions";
 
 export async function handleAddColumn(
   message: AddColumnMessage,
@@ -23,11 +27,7 @@ export async function handleAddColumn(
   }
 
   try {
-    const boards = await storage.getBoards();
-    const board = boards.find(
-      (b) => b.id === message.data.boardId
-    ) as unknown as HandlerBoard;
-
+    const board = await storage.getBoard(message.data.boardId);
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
@@ -40,63 +40,28 @@ export async function handleAddColumn(
     }
 
     // Create new column
-    const newColumn: HandlerColumn = {
-      id: uuidv4(),
+    const newColumn: ModelColumn = {
+      id: message.data.columnId || uuidv4(),
       title: sanitizeString(message.data.title, 100),
-      cards: [],
-      order: board.columns.length,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    board.columns.push(newColumn);
-
-    // Convert to ModelBoard before saving
-    const modelBoard: ModelBoard = {
-      ...board,
-      description: board.description || "",
-      columns: board.columns.map((col) => ({
-        id: col.id,
-        title: col.title,
-        boardId: board.id,
-        cards: col.cards?.map((c) => ({
-          id: c.id,
-          title: c.title,
-          description: c.description || "",
-          columnId: c.columnId,
-          boardId: board.id,
-          createdAt: new Date(c.createdAt),
-          updatedAt: new Date(c.updatedAt),
-        })),
-        cardIds: col.cards?.map((c) => c.id) || [],
-        createdAt: new Date(col.createdAt),
-        updatedAt: new Date(col.updatedAt),
-      })),
-      createdAt: new Date(board.createdAt),
-      updatedAt: new Date(board.updatedAt),
-    };
-
-    await storage.saveBoard(modelBoard);
-
-    logger.debug(`Column with ID ${newColumn.id} added successfully`);
-
-    // Create a ModelColumn for the response
-    const responseColumn: ModelColumn = {
-      id: newColumn.id,
-      title: newColumn.title,
       boardId: board.id,
       cards: [],
       cardIds: [],
-      createdAt: new Date(newColumn.createdAt),
-      updatedAt: new Date(newColumn.updatedAt),
+      order: board.columns.length,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
+
+    board.columns.push(newColumn);
+    await storage.saveBoard(board);
+
+    logger.debug(`Column with ID ${newColumn.id} added successfully`);
 
     return {
       command: "columnAdded",
       data: {
         success: true,
-        column: responseColumn,
-        boardId: message.data.boardId,
+        column: newColumn,
+        boardId: board.id,
       },
     };
   } catch (error) {
@@ -105,9 +70,7 @@ export async function handleAddColumn(
       command: "columnAdded",
       data: {
         success: false,
-        error: `Failed to add column: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        error: error instanceof Error ? error.message : "Failed to add column",
       },
     };
   }

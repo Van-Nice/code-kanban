@@ -112,7 +112,9 @@ suite("Message Handler Tests", () => {
       const column: Column = {
         id: "test-column-1",
         title: "New Column",
+        boardId: testBoard.id,
         cards: [],
+        cardIds: [],
         order: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -150,7 +152,9 @@ suite("Message Handler Tests", () => {
       const column: Column = {
         id: "test-column-1",
         title: "Original Column",
+        boardId: testBoard.id,
         cards: [],
+        cardIds: [],
         order: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -196,7 +200,9 @@ suite("Message Handler Tests", () => {
       const column: Column = {
         id: "test-column-2",
         title: "Column to Delete",
+        boardId: testBoard.id,
         cards: [],
+        cardIds: [],
         order: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

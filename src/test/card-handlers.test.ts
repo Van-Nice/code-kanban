@@ -109,6 +109,8 @@ suite("Card Handler Tests", () => {
       id: "test-column-1",
       title: "Test Column",
       cards: [],
+      cardIds: [],
+      boardId: testBoard.id,
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -27,8 +27,10 @@ export function convertToApiColumn(column: SharedColumn): Column {
   return {
     id: column.id,
     title: column.title,
-    boardId: column.cards[0]?.boardId || "", // Use first card's boardId or empty string
+    boardId: column.boardId || column.cards[0]?.boardId || "", // Use column's boardId first, then fallback to first card's boardId
+    cards: column.cards.map(convertToApiCard),
     cardIds: column.cards.map((c) => c.id),
+    order: column.order || 0,
     createdAt: new Date(column.createdAt),
     updatedAt: new Date(column.updatedAt),
   };
@@ -41,6 +43,9 @@ export function convertToApiCard(card: SharedCard): Card {
     description: card.description,
     columnId: card.columnId,
     boardId: card.boardId,
+    labels: card.labels || [],
+    assignee: card.assignee || "",
+    order: card.order || 0,
     createdAt: new Date(card.createdAt),
     updatedAt: new Date(card.updatedAt),
   };
@@ -65,8 +70,10 @@ export function convertToStorageColumn(
   return {
     id: column.id,
     title: column.title,
+    boardId: column.boardId,
     cards: cards,
-    order: 0, // Default order
+    cardIds: column.cardIds,
+    order: column.order || 0,
     createdAt: column.createdAt.toISOString(),
     updatedAt: column.updatedAt.toISOString(),
   };

@@ -15,8 +15,9 @@ export interface Column {
   id: string;
   title: string;
   boardId: string;
-  cards?: Card[]; // For UI representation
-  cardIds: string[]; // For storage representation
+  cards: Card[];
+  cardIds: string[];
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,8 +26,11 @@ export interface Card {
   id: string;
   title: string;
   description: string;
+  labels: string[];
+  assignee: string;
   columnId: string;
   boardId: string;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -7,6 +7,7 @@ export interface BaseEntity {
 
 // Card types
 export interface Card extends BaseEntity {
+  id: string;
   title: string;
   description: string;
   labels: string[];
@@ -14,6 +15,8 @@ export interface Card extends BaseEntity {
   columnId: string;
   boardId: string;
   order: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CardData extends BaseEntity {
@@ -35,11 +38,15 @@ export interface ColumnData extends BaseEntity {
   order: number;
 }
 
-export interface Column extends BaseEntity {
+export interface Column {
   id: string;
   title: string;
-  cards: Card[]; // For UI
+  boardId: string;
+  cards: Card[];
+  cardIds: string[];
   order: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Board types

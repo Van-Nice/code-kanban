@@ -49,6 +49,9 @@ export async function handleAddCard(
       description: message.data.description?.slice(0, 1000) || "",
       columnId: message.data.columnId,
       boardId: message.data.boardId,
+      labels: [],
+      assignee: "",
+      order: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

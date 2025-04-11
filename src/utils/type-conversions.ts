@@ -58,10 +58,11 @@ export function convertToModelColumn(
     boardId: boardId,
     cards: Array.isArray(column.cards)
       ? column.cards.map((card) => convertToModelCard(card, boardId))
-      : undefined,
+      : [],
     cardIds: Array.isArray(column.cards)
       ? column.cards.map((card) => card.id)
       : [],
+    order: column.order || 0,
     createdAt:
       typeof column.createdAt === "string"
         ? new Date(column.createdAt)
@@ -90,6 +91,9 @@ export function convertToModelCard(
     description: card.description || "", // Handle potentially undefined description
     columnId: card.columnId,
     boardId: cardBoardId,
+    labels: (card as any).labels || [],
+    assignee: (card as any).assignee || "",
+    order: (card as any).order || 0,
     createdAt:
       typeof card.createdAt === "string"
         ? new Date(card.createdAt)
@@ -110,7 +114,7 @@ export function convertToSharedBoard(board: ModelBoard): SharedBoard {
     id: board.id,
     title: board.title,
     description: board.description,
-    columns: board.columns.map((column) => convertToSharedColumn(column)),
+    columns: board.columns.map(convertToSharedColumn),
     createdAt: board.createdAt.toISOString(),
     updatedAt: board.updatedAt.toISOString(),
   };
@@ -123,8 +127,10 @@ export function convertToSharedColumn(column: ModelColumn): SharedColumn {
   return {
     id: column.id,
     title: column.title,
-    cards: column.cards?.map((card) => convertToSharedCard(card)) || [],
-    order: 0, // Default order if not specified
+    boardId: column.boardId,
+    cards: column.cards.map(convertToSharedCard),
+    cardIds: column.cardIds,
+    order: column.order,
     createdAt: column.createdAt.toISOString(),
     updatedAt: column.updatedAt.toISOString(),
   };
@@ -138,11 +144,11 @@ export function convertToSharedCard(card: ModelCard): SharedCard {
     id: card.id,
     title: card.title,
     description: card.description,
+    labels: card.labels,
+    assignee: card.assignee,
     columnId: card.columnId,
     boardId: card.boardId,
-    labels: [], // Default empty labels array
-    assignee: "", // Default empty assignee
-    order: 0, // Default order
+    order: card.order,
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),
   };
