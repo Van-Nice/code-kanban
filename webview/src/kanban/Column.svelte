@@ -19,7 +19,6 @@
     onDeleteColumn?: (columnId: string) => void;
   }>();
 
-  let cardsList = $state(cards);
   let webviewContext = getWebviewContext();
   let isDraggingOver = $state(false);
   let dragOverIndex = $state(-1);
@@ -164,7 +163,7 @@
     const updatedColumn = {
       id,
       title: trimmedTitle,
-      cards: cardsList,
+      cards: cards,
       order: 0 // Preserve existing order if needed
     };
     
@@ -216,7 +215,7 @@
         const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
         const { cardId, fromColumnId } = cardData;
         if (fromColumnId !== id) {
-          const position = dragOverIndex >= 0 ? dragOverIndex : cardsList.length;
+          const position = dragOverIndex >= 0 ? dragOverIndex : cards.length;
           log(`Dropping card ${cardId} at position ${position} in column ${id}`);
           onCardMoved({ cardId, fromColumnId, toColumnId: id, position });
         }
@@ -262,6 +261,10 @@
     
     isMenuOpen = false;
   }
+
+  $effect(() => {
+    log('Column cards updated:', cards);
+  });
 </script>
 
 <!-- Column Component Container -->
@@ -417,7 +420,7 @@
     <!-- Cards Container - Scrollable list of all cards in this column -->
     <div class="p-2 flex-1 overflow-y-auto space-y-2 cards-list">
       <!-- Loop through all cards and render them -->
-      {#each cardsList as card, index (card.id)}
+      {#each cards as card, index (card.id)}
         <!-- Individual Card Wrapper -->
         <!-- Adds visual indicators for drag-and-drop targets -->
         <div
@@ -430,24 +433,27 @@
           <Card
             {...card}
             columnId={id}
-            onUpdateCard={(updatedCard) => {
+            onUpdateCard={(updatedCard: CardType) => {
               log('Card update received in column', updatedCard);
-              cardsList = cardsList.map((c: CardType) => c.id === updatedCard.id ? updatedCard : c);
               onCardUpdated(updatedCard);
             }}
-            onDeleteCard={(cardId) => {
+            onDeleteCard={(cardId: string) => {
               log('Card delete received in column', cardId);
-              cardsList = cardsList.filter((c: CardType) => c.id !== cardId);
               onCardDeleted(cardId);
+            }}
+            onStartDrag={(event: DragEvent, cardId: string) => {
+              log('Card drag started in column', { cardId });
+              if (event.dataTransfer) {
+                event.dataTransfer.setData('text/plain', JSON.stringify({ cardId, fromColumnId: id }));
+                event.dataTransfer.effectAllowed = 'move';
+              }
             }}
           />
         </div>
       {/each}
-
-      <!-- Drag Target Indicator -->
-      <!-- Shows a line when dragging over the bottom position in the column -->
+      <!-- Final placeholder for dropping at the end of the list -->
       {#if isDraggingOver && dragOverIndex === cards.length}
-        <div class="h-1 my-2 rounded bg-[var(--vscode-focusBorder)]"></div>
+        <div class="h-10 bg-[var(--vscode-list-dropBackground)] border-2 border-dashed border-[var(--vscode-focusBorder)] rounded-sm"></div>
       {/if}
 
       <!-- Empty Column State -->

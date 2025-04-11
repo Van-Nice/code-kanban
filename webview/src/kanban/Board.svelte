@@ -93,8 +93,17 @@
         }
         const cardColumnIndex = columns.findIndex(col => col.id === targetCardColumnId);
         if (cardColumnIndex !== -1) {
-          // Add the new card to the beginning of the list for immediate visibility
-          columns[cardColumnIndex].cards = [newCard, ...columns[cardColumnIndex].cards];
+          // Update the columns array immutably to ensure reactivity
+          columns = columns.map((col, index) => {
+            if (index === cardColumnIndex) {
+              // Create a new column object with the new card added to the beginning of its cards array
+              return { 
+                ...col, 
+                cards: [newCard, ...(col.cards || [])] 
+              };
+            }
+            return col;
+          });
           log('Board: Card added to local state', { cardId: newCard.id, columnId: targetCardColumnId });
         } else {
           error('Board: Column not found for CARD_ADDED', { columnId: targetCardColumnId });
