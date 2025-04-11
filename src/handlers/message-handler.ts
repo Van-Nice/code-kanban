@@ -8,7 +8,6 @@ import {
 } from "./messages";
 import { Logger } from "./logger";
 import { BoardStorage } from "./board/board-storage";
-import * as handlers from ".";
 
 export interface HandlerContext {
   storage: BoardStorage;
@@ -66,6 +65,7 @@ export class MessageHandler {
         vscodeContext: this.context,
       };
 
+      const handlers = require(".");
       const handler = handlerMap[message.command];
       if (handler) {
         const response = await handler(message as any, handlerContext);
@@ -134,6 +134,8 @@ export class MessageHandler {
     this.webview.postMessage(message);
   }
 }
+
+import * as handlers from ".";
 
 const handlerMap: { [command: string]: HandlerFunction<any> } = {
   log: handlers.handleLog,

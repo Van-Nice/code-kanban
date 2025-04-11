@@ -54,10 +54,10 @@
     "package": "webpack --mode production",
     "compile-tests": "tsc -p ./src/test/tsconfig.json",
     "watch-tests": "tsc -p ./src/test/tsconfig.json -w",
-    "pretest": "npm run compile && npm run lint",
+    "pretest": "npm run compile-tests",
     "lint": "eslint src",
-    "test": "node ./dist/test/runTest.js",
-    "test-watch": "npm run compile",
+    "test": "vscode-test",
+    "test-watch": "npm run compile-tests && vscode-test",
     "analyze": "ANALYZE=true webpack --mode production",
     "analyze:webview": "npm run analyze --prefix webview",
     "analyze-all": "npm run analyze:webview && npm run analyze"
