@@ -14,7 +14,7 @@ export async function handleOpenBoardInEditor(
   message: OpenBoardInEditorMessage,
   context: HandlerContext
 ): Promise<OpenBoardInEditorResponse> {
-  const { logger } = context;
+  const { logger, storage } = context;
 
   if (!message.data?.boardId) {
     logger.error("Missing boardId for openBoardInEditor command");
@@ -28,6 +28,20 @@ export async function handleOpenBoardInEditor(
   }
 
   try {
+    // First check if the board exists
+    const board = await storage.getBoard(message.data.boardId);
+
+    if (!board) {
+      logger.error(`Board with ID ${message.data.boardId} not found`);
+      return {
+        command: "boardOpenedInEditor",
+        data: {
+          success: false,
+          error: `Board with ID ${message.data.boardId} not found`,
+        },
+      };
+    }
+
     // Execute the openBoardInEditor command through VS Code
     logger.debug(`Opening board in editor: ${message.data.boardId}`);
     await vscode.commands.executeCommand(

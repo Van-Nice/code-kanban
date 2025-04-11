@@ -145,6 +145,7 @@ const handlerMap: { [command: string]: HandlerFunction<any> } = {
   createBoard: handlers.handleCreateBoard,
   deleteBoard: handlers.handleDeleteBoard,
   updateBoard: handlers.handleUpdateBoard,
+  boardLoaded: handlers.handleBoardLoaded,
   addCard: handlers.handleAddCard,
   updateCard: handlers.handleUpdateCard,
   deleteCard: handlers.handleDeleteCard,

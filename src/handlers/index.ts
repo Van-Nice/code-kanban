@@ -5,6 +5,7 @@ export { handleGetBoard } from "./board/get-board-handler";
 export { handleCreateBoard } from "./board/create-board-handler";
 export { handleDeleteBoard } from "./board/delete-board-handler";
 export { handleUpdateBoard } from "./board/update-board-handler";
+export { handleBoardLoaded } from "./board/board-loaded-handler";
 export { handleAddCard } from "./card/add-card-handler";
 export { handleUpdateCard } from "./card/update-card-handler";
 export { handleDeleteCard } from "./card/delete-card-handler";

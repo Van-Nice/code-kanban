@@ -127,17 +127,96 @@ export class BoardStorage implements Storage {
 
       // Handle old format if present
       if (!Array.isArray(rawBoards) && typeof rawBoards === "object") {
+        console.log("BoardData is not an array:", typeof rawBoards);
         const oldBoards = (rawBoards as any).boards;
         if (oldBoards) {
+          // Convert old format boards to the new format
+          const boardsMap = new Map<string, BoardMetadata>();
+          const columnsMap = new Map<string, ColumnData>();
+          const cardsMap = new Map<string, CardData>();
+
+          Object.entries(oldBoards).forEach(([id, boardData]) => {
+            const board = boardData as any;
+
+            // Process columns from old format
+            const columnIds: string[] = [];
+            if (board.columns && Array.isArray(board.columns)) {
+              board.columns.forEach((oldColumn: any) => {
+                const columnId = oldColumn.id;
+                columnIds.push(columnId);
+
+                // Extract cards from old column format
+                const cardIds: string[] = [];
+                if (oldColumn.cards && Array.isArray(oldColumn.cards)) {
+                  oldColumn.cards.forEach((oldCard: any) => {
+                    const cardId = oldCard.id;
+                    cardIds.push(cardId);
+
+                    // Create card in new format
+                    cardsMap.set(cardId, {
+                      id: cardId,
+                      title: oldCard.title || "Untitled Card",
+                      description: oldCard.description || "",
+                      columnId: columnId,
+                      boardId: id,
+                      labels: oldCard.labels || [],
+                      assignee: oldCard.assignee || "",
+                      order: oldCard.order || 0,
+                      createdAt: oldCard.createdAt || new Date().toISOString(),
+                      updatedAt: oldCard.updatedAt || new Date().toISOString(),
+                    });
+                  });
+                }
+
+                // Create column in new format
+                columnsMap.set(columnId, {
+                  id: columnId,
+                  title: oldColumn.title || "Untitled Column",
+                  boardId: id,
+                  cardIds: cardIds,
+                  order: oldColumn.order || 0,
+                  createdAt: oldColumn.createdAt || new Date().toISOString(),
+                  updatedAt: oldColumn.updatedAt || new Date().toISOString(),
+                });
+              });
+            }
+
+            // Create board in new format
+            boardsMap.set(id, {
+              id: board.id || id,
+              title: board.title || "Untitled Board",
+              description: board.description || "",
+              columnIds: columnIds,
+              createdAt: board.createdAt || new Date().toISOString(),
+              updatedAt: board.updatedAt || new Date().toISOString(),
+            });
+          });
+
+          // After successful migration, update the storage to use the new format
+          const storageData = {
+            boards: Array.from(boardsMap.values()),
+            columns: Array.from(columnsMap.values()),
+            cards: Array.from(cardsMap.values()),
+          };
+
+          // Save the migrated data
+          await this.context.globalState.update(
+            STORAGE_KEYS.BOARDS,
+            storageData.boards
+          );
+          await this.context.globalState.update(
+            STORAGE_KEYS.COLUMNS,
+            storageData.columns
+          );
+          await this.context.globalState.update(
+            STORAGE_KEYS.CARDS,
+            storageData.cards
+          );
+
           return {
-            boards: new Map(
-              Object.entries(oldBoards).map(([id, board]) => [
-                id,
-                board as BoardMetadata,
-              ])
-            ),
-            columns: new Map(),
-            cards: new Map(),
+            boards: boardsMap,
+            columns: columnsMap,
+            cards: cardsMap,
           };
         }
       }
@@ -190,13 +269,17 @@ export class BoardStorage implements Storage {
       ]);
 
       resolve();
-      this.saveQueue.shift();
     } catch (error) {
       reject(error);
     } finally {
+      // Remove the task we just processed
+      this.saveQueue.shift();
       this.saveInProgress = false;
+
+      // Process the next task in the queue if there is one
       if (this.saveQueue.length > 0) {
-        await this.processSaveQueue();
+        // Use setTimeout to avoid stack overflow with deep recursion
+        setTimeout(() => this.processSaveQueue(), 0);
       }
     }
   }

@@ -1,16 +1,16 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { BoardStorage } from "../handlers/board/board-storage";
-import { Board, Column, Card } from "../shared/types";
+import { BoardStorage } from "@handlers/board/board-storage";
+import { Board, Column, Card } from "@shared/types";
 import {
   handleAddColumn,
   handleUpdateColumn,
   handleDeleteColumn,
   handleOpenBoardInEditor,
   handleShowErrorMessage,
-} from "../handlers";
+} from "@src/handlers";
 import { TestLogger, MockWebview } from "./test-utils";
-import { convertToModelBoard } from "../utils/type-conversions";
+import { convertToModelBoard } from "@utils/type-conversions";
 
 suite("Message Handler Tests", () => {
   let boardStorage: BoardStorage;
@@ -24,6 +24,18 @@ suite("Message Handler Tests", () => {
     mockStorage = new Map();
     testLogger = new TestLogger();
     mockWebview = new MockWebview();
+
+    // Register the command we need for testing
+    vscode.commands.registerCommand(
+      "boogie.openBoardInEditor",
+      (boardId: string) => {
+        testLogger.info(
+          `openBoardInEditor command executed with boardId: ${boardId}`
+        );
+        return true;
+      }
+    );
+
     extensionContext = {
       subscriptions: [],
       extensionPath: "",
@@ -96,6 +108,14 @@ suite("Message Handler Tests", () => {
     };
 
     boardStorage = new BoardStorage(extensionContext);
+  });
+
+  // Add setup before each test suite to ensure a clean state
+  setup(async () => {
+    // Reset the storage for each test
+    await boardStorage.clear();
+
+    // Create a fresh test board
     testBoard = {
       id: "test-board-1",
       title: "Test Board",
@@ -104,7 +124,14 @@ suite("Message Handler Tests", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
     await boardStorage.saveBoard(convertToModelBoard(testBoard));
+
+    // Verify the board exists
+    const boards = await boardStorage.getBoards();
+    if (!boards.find((b) => b.id === testBoard.id)) {
+      throw new Error("Failed to set up test board!");
+    }
   });
 
   suite("Column Handler Tests", () => {
@@ -278,8 +305,12 @@ suite("Message Handler Tests", () => {
       );
 
       assert.strictEqual(response.command, "boardOpenedInEditor");
-      assert.strictEqual(response.data.success, false);
-      assert.ok(response.data.error);
+      assert.strictEqual(
+        response.data.success,
+        false,
+        "Should report failure for non-existent board"
+      );
+      assert.ok(response.data.error, "Should include an error message");
     });
 
     test("should handle missing boardId", async () => {

@@ -7,7 +7,16 @@
     "rootDir": "src",
     "outDir": "dist",
     "strict": true /* enable all strict type-checking options */,
-    "skipLibCheck": true /* Skip type checking of declaration files. */
+    "skipLibCheck": true /* Skip type checking of declaration files. */,
+    /* Path aliases for consistent imports */
+    "baseUrl": ".",
+    "paths": {
+      "@src/*": ["src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@handlers/*": ["src/handlers/*"],
+      "@models/*": ["src/models/*"],
+      "@utils/*": ["src/utils/*"]
+    }
     /* Additional Checks */
     // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
     // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */

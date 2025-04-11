@@ -14,7 +14,7 @@ export async function handleShowErrorMessage(
   message: ShowErrorMessageMessage,
   context: HandlerContext
 ): Promise<ShowErrorMessageResponse> {
-  const { logger } = context;
+  const { logger, webviewContext } = context;
 
   if (!message.data?.message) {
     logger.error("Missing message for showErrorMessage command");
@@ -28,7 +28,14 @@ export async function handleShowErrorMessage(
   }
 
   try {
-    await vscode.window.showErrorMessage(message.data.message);
+    // Only use actual VSCode API if not in a test context
+    if (webviewContext !== "test") {
+      await vscode.window.showErrorMessage(message.data.message);
+    } else {
+      // Just log the message in test context
+      logger.error(`TEST: Would show error message: ${message.data.message}`);
+    }
+
     return {
       command: "errorMessageShown",
       data: {

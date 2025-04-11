@@ -213,8 +213,12 @@
     };
     
     sendMessage({
-      command: 'createColumn',
-      data: { column: newColumn, boardId }
+      command: 'addColumn',
+      data: { 
+        boardId,
+        columnId: newColumn.id,
+        title: newColumn.title
+      }
     });
   }
 

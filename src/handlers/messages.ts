@@ -359,3 +359,14 @@ export interface BoardsRetrievedResponse {
     error?: string;
   };
 }
+
+export interface BoardLoadedMessage extends WebviewMessageBase {
+  command: "boardLoaded";
+  data: {
+    success: boolean;
+    columns: any[];
+    title: string;
+    context: string;
+    updatedAt: string;
+  };
+}
