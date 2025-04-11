@@ -40,10 +40,6 @@
   let isSaving = $state(false);
   let saveError = $state<string | null>(null);
   
-  // Track active timers for cleanup
-  let saveTimeout: number | undefined = undefined;
-  let finalTimeout: number | undefined = undefined;
-
   function startEditing() {
     isEditing = true;
     editedTitle = title;
@@ -63,21 +59,7 @@
   
   onDestroy(() => {
     // Clean up any active timers
-    cleanupSaveOperations();
   });
-  
-  function cleanupSaveOperations() {
-    // Clear timeouts if active
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-      saveTimeout = undefined;
-    }
-    
-    if (finalTimeout) {
-      clearTimeout(finalTimeout);
-      finalTimeout = undefined;
-    }
-  }
 
   function saveChanges() {
     // Prevent multiple saves while one is in progress
@@ -97,9 +79,6 @@
     // Reset error state and set saving state
     saveError = null;
     isSaving = true;
-
-    // Clean up any existing timers
-    cleanupSaveOperations();
 
     // Log edited values for debugging
     log('Card being saved with values:', { 
@@ -135,28 +114,10 @@
         }
       });
       
-      // Instead of using a dynamic listener, we'll rely on the parent component
-      // to handle the card update via the standard message flow, and we'll use
-      // timers to handle timeouts.
-      
-      // Set up a timeout to detect if the update is taking too long
-      saveTimeout = window.setTimeout(() => {
-        if (isSaving) {
-          // Still saving after timeout - might be an issue with the server
-          log('Card save is taking longer than expected');
-          log('First timeout reached (3s) - still waiting for response');
-        }
-      }, 3000);
-        
-      // Fallback - if after 10 seconds we haven't gotten a response, assume failure
-      finalTimeout = window.setTimeout(() => {
-        if (isSaving) {
-          log('No update response received after timeout, manual check required');
-          log('Final timeout reached (10s) - no response received');
-          saveError = 'Update timed out. Please check if your changes were saved.';
-          isSaving = false;
-        }
-      }, 10000);
+      // Optimistically update UI and propagate change
+      onUpdateCard(updatedCard); // Call the prop to notify parent
+      isEditing = false;       // Exit editing mode
+      isSaving = false;        // Reset saving state
       
     } catch (err) {
       isSaving = false;
@@ -168,14 +129,6 @@
         data: { message: 'Failed to save card changes. Please try again.' }
       });
     }
-  }
-  
-  function handleSaveSuccess(updatedCard: CardType) {
-    log('Card update confirmed by server', updatedCard);
-    cleanupSaveOperations();
-    isSaving = false;
-    isEditing = false;
-    onUpdateCard(updatedCard);
   }
 
   function cancelEditing() {

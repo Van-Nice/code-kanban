@@ -58,6 +58,7 @@ export async function handleDeleteCard(
           data: {
             success: true,
             cardId: message.data.cardId,
+            columnId: column.id,
           },
         };
       }

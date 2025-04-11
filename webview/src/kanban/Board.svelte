@@ -170,7 +170,47 @@
         }
         break;
 
-      // TODO: Add cases for CARD_UPDATED, CARD_DELETED, CARD_MOVED etc.
+      case Commands.CARD_UPDATED:
+        log('Board: Received CARD_UPDATED', message.data);
+        const { card: updatedCardData, columnId: targetUpdateColumnId } = message.data;
+        if (!updatedCardData || !targetUpdateColumnId) {
+          error('Board: Invalid CARD_UPDATED data', message.data);
+          return;
+        }
+        
+        columns = columns.map(col => {
+          if (col.id === targetUpdateColumnId) {
+            // Found the correct column, now update the specific card
+            const updatedCards = (col.cards || []).map(card => 
+              card.id === updatedCardData.id ? updatedCardData : card
+            );
+            return { ...col, cards: updatedCards };
+          }
+          return col; // Return other columns unchanged
+        });
+        log('Board: Card updated in local state', { cardId: updatedCardData.id, columnId: targetUpdateColumnId });
+        break;
+
+      case Commands.CARD_DELETED:
+        log('Board: Received CARD_DELETED', message.data);
+        const { cardId: deletedCardId, columnId: targetDeleteColumnId } = message.data;
+        if (!deletedCardId || !targetDeleteColumnId) {
+          error('Board: Invalid CARD_DELETED data', message.data);
+          return;
+        }
+
+        columns = columns.map(col => {
+          if (col.id === targetDeleteColumnId) {
+            // Found the correct column, now filter out the deleted card
+            const updatedCards = (col.cards || []).filter(card => card.id !== deletedCardId);
+            return { ...col, cards: updatedCards };
+          }
+          return col; // Return other columns unchanged
+        });
+        log('Board: Card deleted from local state', { cardId: deletedCardId, columnId: targetDeleteColumnId });
+        break;
+
+      // TODO: Add cases for CARD_MOVED etc.
       default:
         log('Board: Received unknown command or command not handled yet:', message.command);
     }
@@ -382,6 +422,19 @@
   function removeLabel(label: string) {
     newCardLabels = newCardLabels.filter(l => l !== label);
   }
+
+  function handleUpdateCard(updatedCard: Card) {
+    log('Board: handleUpdateCard called', { cardId: updatedCard.id, columnId: updatedCard.columnId });
+    sendMessage({
+      command: Commands.UPDATE_CARD,
+      data: {
+        boardId,
+        columnId: updatedCard.columnId, // Ensure columnId is included
+        card: updatedCard
+      }
+    });
+    log('Board: UPDATE_CARD message sent to extension');
+  }
 </script>
 
 <!-- Root container with adaptive styling based on context -->
@@ -434,7 +487,7 @@
               cards={column.cards}
               boardId={boardId}
               onCardMoved={handleCardMove}
-              onCardUpdated={handleCardUpdated}
+              onCardUpdated={handleUpdateCard}
               onCardDeleted={handleCardDeleted}
               onAddCard={handleAddCard}
               onDeleteColumn={deleteColumn}
@@ -458,7 +511,7 @@
               cards={column.cards}
               boardId={boardId}
               onCardMoved={handleCardMove}
-              onCardUpdated={handleCardUpdated}
+              onCardUpdated={handleUpdateCard}
               onCardDeleted={handleCardDeleted}
               onAddCard={handleAddCard}
               onDeleteColumn={deleteColumn}
