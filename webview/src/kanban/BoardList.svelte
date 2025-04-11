@@ -17,6 +17,11 @@
   let isLoading = $state(true);
   let searchQuery = $state('');
 
+  // State for delete confirmation modal
+  let isConfirmingDelete = $state(false);
+  let boardToDeleteId = $state<string | null>(null);
+  let boardToDeleteTitle = $state<string | null>(null);
+
   let filteredBoards = $derived(
     searchQuery
       ? boards.filter(board =>
@@ -97,30 +102,40 @@
     });
   }
 
-  function deleteBoard(boardId: string, event: MouseEvent | KeyboardEvent) {
+  function startDeleteBoard(boardId: string, event: MouseEvent | KeyboardEvent) {
+    log('>>> BoardList: startDeleteBoard function entered for board:', boardId);
     event.stopPropagation();
-    
-    // Find the board title for the confirmation dialog
     const board = boards.find(b => b.id === boardId);
     if (!board) {
       error('Board not found for deletion', { boardId });
       return;
     }
-    
-    // Show confirmation dialog
-    const confirmDelete = confirm(`Are you sure you want to delete the board "${board.title}"?`);
-    if (!confirmDelete) {
-      log('Board deletion cancelled', { boardId });
-      return;
-    }
-    
-    log('Board deletion confirmed', { boardId });
+    boardToDeleteId = boardId;
+    boardToDeleteTitle = board.title;
+    isConfirmingDelete = true;
+  }
+
+  function cancelDeleteBoard() {
+    log('Board deletion cancelled', { boardId: boardToDeleteId });
+    isConfirmingDelete = false;
+    boardToDeleteId = null;
+    boardToDeleteTitle = null;
+  }
+
+  function confirmDeleteBoard() {
+    if (!boardToDeleteId) return;
+    log('Board deletion confirmed', { boardId: boardToDeleteId });
     
     // Send message to extension
     sendMessage({
       command: Commands.DELETE_BOARD,
-      data: { boardId }
+      data: { boardId: boardToDeleteId }
     });
+    
+    // Close modal
+    isConfirmingDelete = false;
+    boardToDeleteId = null;
+    boardToDeleteTitle = null;
   }
 
   function openBoardInEditor(boardId: string, event: MouseEvent | KeyboardEvent) {
@@ -231,8 +246,8 @@
           <line x1="12" y1="8" x2="12" y2="16"></line>
           <line x1="8" y1="12" x2="16" y2="12"></line>
         </svg>
-        <p class="mb-2">No boards found</p>
-        <p class="text-sm">Create your first board to get started</p>
+        <p class="mb-2">No boards found.</p>
+        <p class="text-sm">Create your first board to get started!</p>
       {/if}
     </div>
   {:else}
@@ -271,12 +286,12 @@
               </button>
               <!-- Delete button -->
               <button
-                onclick={(e: MouseEvent) => { e.stopPropagation(); deleteBoard(board.id, e); }}
+                onclick={(e: MouseEvent) => { e.stopPropagation(); startDeleteBoard(board.id, e); }}
                 onkeydown={(e: KeyboardEvent) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     e.stopPropagation();
-                    deleteBoard(board.id, e);
+                    startDeleteBoard(board.id, e);
                   }
                 }}
                 class="p-1 text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-errorForeground)] hover:bg-[var(--vscode-toolbar-hoverBackground)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
@@ -306,3 +321,30 @@
     </div>
   {/if}
 </div>
+
+<!-- Delete Confirmation Modal -->
+{#if isConfirmingDelete}
+  <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+    <div class="bg-[var(--vscode-panel-background)] border border-[var(--vscode-panel-border)] rounded-sm p-4 max-w-sm w-full">
+      <h3 class="text-sm font-medium text-[var(--vscode-foreground)] mb-2">Confirm Deletion</h3>
+      <p class="text-xs text-[var(--vscode-descriptionForeground)] mb-4">
+        Are you sure you want to delete the board "<strong>{boardToDeleteTitle || ''}</strong>"?
+        <br />This action cannot be undone.
+      </p>
+      <div class="flex justify-end gap-2">
+        <button
+          onclick={cancelDeleteBoard}
+          class="px-2 py-1 text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={confirmDeleteBoard}
+          class="px-2 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        >
+          Confirm Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

@@ -5,17 +5,19 @@
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
   import type { Board, Column, Card } from '../types';
   import { Commands } from '../shared/commands';
+  import type { Board as SharedBoard } from '../shared/types';
 
-  let { boardId } = $props<{
-    boardId: string;
+  let { board } = $props<{
+    board: SharedBoard;
   }>();
 
-  let columns = $state<Column[]>([]);
+  let columns = $state<Column[]>(board.columns || []);
+  let boardId = $state<string>(board.id);
   let messageHandler: (message: any) => void;
   let webviewContext = $state<string>('');
-  let isLoading = $state(true);
-  let boardTitle = $state('');
-  let boardUpdatedAt = $state<string | undefined>(undefined);
+  let isLoading = $state(false);
+  let boardTitle = $state<string>(board.title || 'Untitled Board');
+  let boardUpdatedAt = $state<string | undefined>(board.updatedAt);
   
   // Card creation state
   let isCreatingCard = $state(false);
@@ -52,32 +54,6 @@
     
     log(`Board mounted with boardId: ${boardId}, webviewContext: ${webviewContext}`);
     
-    // Set up message listener with extra validation
-    messageHandler = (message) => {
-      log(`Board received raw message:`, message);
-
-      // Perform validation on the message
-      if (!message) {
-        error("Received null or undefined message");
-        return;
-      }
-      
-      if (!message.command) {
-        error("Received message without command property:", message);
-        return;
-      }
-
-      // Check for card added messages specifically
-      if (message && (message.command === Commands.CARD_ADDED || message.command === "cardAdded")) {
-        log(`⭐ CARD_ADDED message received by Board component!`, message.data);
-      }
-
-      handleExtensionMessage(message);
-    };
-    
-    log('Board component: Setting up message listener');
-    setupMessageListener(messageHandler);
-    
     // Send a test message to verify communication channel
     try {
       log('Sending test message to extension');
@@ -89,205 +65,11 @@
     } catch (err) {
       error('Failed to send test message:', err);
     }
-
-    // Request board data from extension
-    log(`Board component: Requesting board data for boardId: ${boardId}`);
-    requestBoardData();
-    
-    // Setting isLoading to false after a timeout to ensure UI is responsive
-    setTimeout(() => {
-      log('Board component: Setting isLoading to false after timeout');
-      isLoading = false;
-    }, 1000);
   });
 
   onDestroy(() => {
-    // Clean up message listener
-    if (messageHandler) {
-      log('Board component: Cleaning up message listener on destroy');
-      removeMessageListener(messageHandler);
-    }
+    // REMOVED: Message listener cleanup
   });
-
-  function handleExtensionMessage(message: any) {
-    // The message might be an event or a direct message object
-    // If it's an event (has data property), extract the data
-    if (message && message.data && message.data.command) {
-      message = message.data;
-    }
-    
-    if (!message || !message.command) {
-      log('Board received invalid message, ignoring:', message);
-      return;
-    }
-
-    log(`Board received message: ${message.command}`);
-
-    switch (message.command) {
-      case Commands.BOARD_LOADED:
-      case "boardLoaded":
-        log('Processing BOARD_LOADED message:', message.data);
-        if (message.data.success) {
-          log('Board load success - updating columns with data');
-          columns = message.data.columns?.map((col: any) => ({
-            ...col,
-            cards: col.cards || []
-          })) || [];
-          boardTitle = message.data.title || 'Untitled Board';
-          log('Board data loaded successfully:', 
-            { 
-              columnCount: columns.length, 
-              boardTitle 
-            }
-          );
-          boardUpdatedAt = message.data.updatedAt;
-          isLoading = false;
-          log('Set isLoading to false after successful board load');
-        }
-        break;
-      case Commands.CARD_ADDED:
-      case "cardAdded":
-        log('Processing CARD_ADDED message:', message.data);
-        if (message.data.success && message.data.card) {
-          const { card, columnId } = message.data;
-          log('Adding new card to column:', columnId);
-          log('Card details:', card);
-          
-          // Find the column that should receive this card
-          const targetColumnIndex = columns.findIndex((col: Column) => col.id === columnId);
-          if (targetColumnIndex >= 0) {
-            log('Found matching column at index:', targetColumnIndex);
-            
-            // Create a new columns array with the updated column
-            const updatedColumns = [...columns];
-            
-            // Create an updated column with the new card
-            const targetColumn = updatedColumns[targetColumnIndex];
-            const updatedColumn = {
-              ...targetColumn,
-              cards: [...targetColumn.cards, card]
-            };
-            
-            // Replace the old column with the updated one
-            updatedColumns[targetColumnIndex] = updatedColumn;
-            
-            // Update the columns array
-            columns = updatedColumns;
-            
-            log(`Column ${columnId} updated with new card ${card.id}`);
-            log(`Column now has ${updatedColumn.cards.length} cards`);
-          } else {
-            error('Cannot add card: column not found', { columnId });
-          }
-        } else if (!message.data.success) {
-          error('Failed to add card:', message.data.error);
-        }
-        break;
-      case Commands.BOARD_UPDATED:
-        if (message.data.success && message.data.board) {
-          boardTitle = message.data.board.title;
-          boardUpdatedAt = message.data.board.updatedAt;
-        }
-        break;
-      case Commands.COLUMN_UPDATED:
-        if (message.data.success && message.data.column) {
-          columns = columns.map((col: Column) => 
-            col.id === message.data.column.id ? {
-              ...col,
-              ...message.data.column,
-              cards: col.cards
-            } : col
-          );
-          boardUpdatedAt = message.data.updatedAt;
-        }
-        break;
-      case Commands.CARD_UPDATED:
-        if (message.data.success) {
-          const { card } = message.data;
-          columns = columns.map(col => {
-            if (col.id === card.columnId) {
-              return {
-                ...col,
-                cards: col.cards.map(c => c.id === card.id ? card : c)
-              };
-            }
-            return col;
-          });
-        }
-        break;
-      case Commands.CARD_DELETED:
-        if (message.data.success) {
-          const { cardId, columnId } = message.data;
-          columns = columns.map(col => {
-            if (col.id === columnId) {
-              return {
-                ...col,
-                cards: col.cards.filter(c => c.id !== cardId)
-              };
-            }
-            return col;
-          });
-        }
-        break;
-      case Commands.CARD_MOVED:
-        if (message.data.success) {
-          const { cardId, fromColumnId, toColumnId, position } = message.data;
-          columns = columns.map(col => {
-            if (col.id === fromColumnId) {
-              return {
-                ...col,
-                cards: col.cards.filter(c => c.id !== cardId)
-              };
-            }
-            if (col.id === toColumnId) {
-              const card = columns.find(c => c.id === fromColumnId)?.cards.find(c => c.id === cardId);
-              if (card) {
-                const newCards = [...col.cards];
-                newCards.splice(position, 0, { ...card, columnId: toColumnId });
-                return {
-                  ...col,
-                  cards: newCards
-                };
-              }
-            }
-            return col;
-          });
-        }
-        break;
-      case Commands.COLUMN_ADDED:
-        log('Processing COLUMN_ADDED message:', message.data);
-        if (message.data.success && message.data.column) {
-          const { column } = message.data;
-          log('Adding new column to board:', column);
-          
-          // Check if column already exists to avoid duplicates
-          const existingColumn = columns.find((col: Column) => col.id === column.id);
-          if (existingColumn) {
-            log('Column already exists, skipping:', column.id);
-          } else {
-            // Ensure the column has a cards array
-            const newColumn = {
-              ...column,
-              cards: column.cards || []
-            };
-            log('Adding new column to columns array:', newColumn);
-            columns = [...columns, newColumn];
-            log(`Columns array updated. Now has ${columns.length} columns`);
-          }
-        } else if (!message.data.success) {
-          error('Failed to add column:', message.data.error);
-        }
-        break;
-      case Commands.COLUMN_DELETED:
-        if (message.data.success) {
-          const { columnId } = message.data;
-          columns = columns.filter(col => col.id !== columnId);
-        }
-        break;
-      default:
-        break;
-    }
-  }
 
   function getColumnCards(columnId: string): Card[] {
     const column = columns.find(col => col.id === columnId);
@@ -405,18 +187,6 @@
       data: { columnId, boardId }
     });
     log('deleteColumn message sent to extension');
-  }
-
-  function requestBoardData() {
-    if (!boardId) {
-      error('Cannot request board data: boardId is missing');
-      return;
-    }
-
-    sendMessage({
-      command: Commands.GET_BOARD,
-      data: { boardId }
-    });
   }
 
   function handleCardUpdated(card: Card) {

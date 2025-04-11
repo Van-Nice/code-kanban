@@ -206,6 +206,12 @@ export function setupMessageListener(
     console.log("Message received from extension:", event.data);
     const message = event.data as VSCodeMessage;
 
+    // Log the raw message received by the core listener
+    console.log(
+      ">>> vscodeMessaging: Raw message event received in listener:",
+      JSON.stringify(message)
+    );
+
     // Only process messages with a valid command
     if (message && message.command) {
       console.log(`Processing message with command: ${message.command}`);

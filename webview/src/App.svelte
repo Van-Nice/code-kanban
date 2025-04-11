@@ -4,14 +4,17 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from './utils/vscodeMessaging';
 	import { Commands } from './shared/commands';
+	import type { Board as SharedBoard } from './shared/types';
   
     let currentBoardId = $state<string | null>(null);
+    let currentBoardData = $state<SharedBoard | null>(null);
     let messageHandler: (message: any) => void;
     let webviewContext: string;
     let theme = $state<string>('dark'); // Default theme
     let themeObserver: MutationObserver | null = null;
   
 	onMount(() => {
+	  log('App.svelte onMount: Initializing...');
 	  // Initialize VSCode API
 	  initializeVSCodeApi();
 	  
@@ -22,7 +25,9 @@
 	  messageHandler = (message) => {
 		handleExtensionMessage(message);
 	  };
+	  log('App.svelte onMount: About to call setupMessageListener...');
 	  setupMessageListener(messageHandler);
+	  log('App.svelte onMount: setupMessageListener called.');
   
 	  // Check if we have a board ID in the URL
 	  const urlParams = new URLSearchParams(window.location.search);
@@ -69,6 +74,7 @@
 	
 	// Clean up all event listeners and observers
 	onDestroy(() => {
+	  log('App.svelte onDestroy: Cleaning up listener...');
 	  // Clean up message listener
 	  if (messageHandler) {
 	    log('App: cleaning up message listener');
@@ -91,12 +97,12 @@
   
 	  switch (message.command) {
 		case Commands.BOARD_LOADED:
-		  // Handle board loaded message
-		  if (message.data && message.data.success) {
-			log('Board loaded successfully', message.data);
-			// No need to forward this message - it's already coming from the extension
+		  if (message.data && message.data.success && message.data.board) {
+			log('App received BOARD_LOADED, updating state', message.data.board);
+			currentBoardData = message.data.board;
 		  } else {
 			error('Failed to load board', message.data);
+			currentBoardData = null;
 		  }
 		  break;
 		case Commands.COLUMN_ADDED:
@@ -106,19 +112,44 @@
 		  break;
 		case Commands.CARD_ADDED:
 		case "cardAdded":
-		  // Special handling for CARD_ADDED with extra logging
-		  log(`App received ${message.command} message - no need to forward to Board component`, message.data);
-		  // Log details of the card data
-		  if (message.data && message.data.card) {
-		    log(`Card information details:`, {
-		      cardId: message.data.card.id,
-		      title: message.data.card.title,
-		      columnId: message.data.card.columnId || message.data.columnId
-		    });
+		  if (message.data && message.data.success && message.data.card && currentBoardData) {
+			const { card, columnId } = message.data;
+			log(`App received CARD_ADDED, updating board state for card ${card.id} in column ${columnId}`);
+
+			const targetColumnIndex = currentBoardData.columns.findIndex(col => col.id === columnId);
+
+			if (targetColumnIndex !== -1) {
+			  // 1. Get the original column from the *current* state
+			  const originalColumn = currentBoardData.columns[targetColumnIndex];
+			  
+			  // 2. Create the new cards array based on the *original* column's cards
+			  const updatedCards = [...(originalColumn.cards || []), card];
+			  
+			  // 3. Create a new column object with the updated cards
+			  const newColumnObject = { 
+				...originalColumn, 
+				cards: updatedCards 
+			  };
+
+			  // 4. Create the new columns array, replacing the old column with the new one
+			  const updatedColumns = currentBoardData.columns.map((col, index) => 
+				index === targetColumnIndex ? newColumnObject : col
+			  );
+
+			  // 5. Update the state with the new columns array
+			  currentBoardData = { 
+				...currentBoardData, 
+				columns: updatedColumns, 
+				updatedAt: new Date().toISOString() // Update timestamp
+			  };
+			  
+			  log('App board state updated after CARD_ADDED', JSON.stringify(currentBoardData));
+			} else {
+			  error('CARD_ADDED handler in App: Column not found', { columnId });
+			}
+		  } else {
+			error('App received invalid CARD_ADDED message or board data missing', message.data);
 		  }
-		  
-		  // No need to re-forward messages - the Board component has its own listener
-		  // that will pick up extension messages directly
 		  break;
 		case Commands.CARD_UPDATED:
 		case Commands.CARD_DELETED:
@@ -159,6 +190,14 @@
 	function handleBoardSelect(boardId: string) {
 	  log('Board selected', { boardId });
 	  currentBoardId = boardId;
+	  currentBoardData = null; // Reset board data while loading
+
+	  // Send message to extension to get the board data
+	  sendMessage({
+		command: Commands.GET_BOARD,
+		data: { boardId }
+	  });
+
 	  // Update URL without reloading the page
 	  const url = new URL(window.location.href);
 	  url.searchParams.set('boardId', boardId);
@@ -168,6 +207,8 @@
 	function handleBackToBoards() {
 	  log('Navigating back to boards list');
 	  currentBoardId = null;
+	  currentBoardData = null; // Clear board data when going back
+
 	  // Update URL without reloading the page
 	  const url = new URL(window.location.href);
 	  url.searchParams.delete('boardId');
@@ -190,7 +231,11 @@
 			<span>Back to Boards</span>
 		  </button>
 		</div>
-		<Board boardId={currentBoardId} />
+		{#if currentBoardData}
+		  <Board board={currentBoardData} />
+		{:else}
+		  <p>Loading board data...</p>
+		{/if}
 	  </div>
 	{:else}
 	  <BoardList onBoardSelect={handleBoardSelect} />
