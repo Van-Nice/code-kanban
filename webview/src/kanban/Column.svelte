@@ -28,6 +28,7 @@
   let isEditingTitle = $state(false);
   let editedTitle = $state(title);
   let isMenuOpen = $state(false);
+  let isConfirmingDelete = $state(false);
   let columnElement: HTMLElement; // Reference to the root element
   let clickHandler: (e: MouseEvent) => void;
   let documentClickHandler: (e: MouseEvent) => void; // Handler for document clicks
@@ -231,18 +232,32 @@
     isCollapsed = !isCollapsed;
   }
 
+  function startColumnDeleteConfirmation() {
+    log('Delete column requested for column:', id);
+    isConfirmingDelete = true;
+    isMenuOpen = false; // Close the menu when starting delete
+  }
+
+  function cancelDelete() {
+    log('Column deletion cancelled', { columnId: id });
+    isConfirmingDelete = false;
+  }
+
+  function confirmActualDelete() {
+    log('Column deletion confirmed', { columnId: id });
+    if (onDeleteColumn) {
+      onDeleteColumn(id); // Call the actual delete handler passed from Board.svelte
+    }
+    isConfirmingDelete = false;
+  }
+
   function deleteColumn() {
     log('Delete column requested for column:', id);
     
     // Check if this is the last column
     if (onDeleteColumn) {
-      const confirmDelete = confirm(`Are you sure you want to delete the column "${title}"?`);
-      if (confirmDelete) {
-        log('Delete column confirmed for column:', id);
-        onDeleteColumn(id);
-      } else {
-        log('Delete column cancelled for column:', id);
-      }
+      // Start the confirmation process instead of direct confirm()
+      startColumnDeleteConfirmation();
     }
     
     isMenuOpen = false;
@@ -383,7 +398,7 @@
                 <li>
                   <button
                     class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-errorForeground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
-                    onclick={deleteColumn}
+                    onclick={startColumnDeleteConfirmation}
                   >
                     Delete column
                   </button>
@@ -451,3 +466,31 @@
     </div>
   {/if}
 </div>
+
+<!-- Delete Confirmation Modal -->
+{#if isConfirmingDelete}
+  <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+    <div class="bg-[var(--vscode-panel-background)] border border-[var(--vscode-panel-border)] rounded-sm p-4 max-w-sm w-full">
+      <h3 class="text-sm font-medium text-[var(--vscode-foreground)] mb-2">Confirm Deletion</h3>
+      <p class="text-xs text-[var(--vscode-descriptionForeground)] mb-4">
+        Are you sure you want to delete the column "<strong>{title || ''}</strong>"?
+        <br />All cards within this column will also be deleted.
+        <br />This action cannot be undone.
+      </p>
+      <div class="flex justify-end gap-2">
+        <button
+          onclick={cancelDelete}
+          class="px-2 py-1 text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={confirmActualDelete}
+          class="px-2 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        >
+          Confirm Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

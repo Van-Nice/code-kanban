@@ -54,6 +54,12 @@
     
     log(`Board mounted with boardId: ${boardId}, webviewContext: ${webviewContext}`);
     
+    // Set up message listener
+    messageHandler = (message) => {
+      handleExtensionMessage(message);
+    };
+    setupMessageListener(messageHandler);
+    
     // Send a test message to verify communication channel
     try {
       log('Sending test message to extension');
@@ -68,8 +74,75 @@
   });
 
   onDestroy(() => {
-    // REMOVED: Message listener cleanup
+    // Clean up message listener when component is destroyed
+    if (messageHandler) {
+      log('Board: cleaning up message listener');
+      removeMessageListener(messageHandler);
+    }
   });
+
+  function handleExtensionMessage(message: any) {
+    log('Board received message:', message);
+    switch (message.command) {
+      case Commands.CARD_ADDED:
+        log('Board: Received CARD_ADDED', message.data);
+        const { card: newCard, columnId: targetCardColumnId } = message.data;
+        if (!newCard || !targetCardColumnId) {
+          error('Board: Invalid CARD_ADDED data', message.data);
+          return;
+        }
+        const cardColumnIndex = columns.findIndex(col => col.id === targetCardColumnId);
+        if (cardColumnIndex !== -1) {
+          // Add the new card to the beginning of the list for immediate visibility
+          columns[cardColumnIndex].cards = [newCard, ...columns[cardColumnIndex].cards];
+          log('Board: Card added to local state', { cardId: newCard.id, columnId: targetCardColumnId });
+        } else {
+          error('Board: Column not found for CARD_ADDED', { columnId: targetCardColumnId });
+        }
+        break;
+
+      case Commands.COLUMN_ADDED:
+        log('Board: Received COLUMN_ADDED', message.data);
+        const { column: newColumn } = message.data;
+        if (!newColumn) {
+          error('Board: Invalid COLUMN_ADDED data', message.data);
+          return;
+        }
+        // Add the new column, ensuring cards array exists
+        columns = [...columns, { ...newColumn, cards: newColumn.cards || [] }];
+        log('Board: Column added to local state', { columnId: newColumn.id });
+        break;
+
+      case Commands.BOARD_LOADED: // Assuming the extension might send the full board on updates
+        log('Board: Received BOARD_LOADED', message.data);
+        // Replace local state with the new board data
+        if (message.data.board && message.data.board.id === boardId) {
+          boardTitle = message.data.board.title;
+          // Ensure columns and cards within columns exist
+          columns = (message.data.board.columns || []).map((col: Column) => ({ ...col, cards: col.cards || [] }));
+          boardUpdatedAt = message.data.board.updatedAt;
+          log('Board: Local state updated from BOARD_LOADED');
+        } else {
+          log('Board: Received BOARD_LOADED for a different board or invalid data', { expected: boardId, received: message.data.board?.id });
+        }
+        break;
+        
+      case Commands.COLUMN_DELETED:
+        log('Board: Received COLUMN_DELETED', message.data);
+        const { columnId: deletedColumnId } = message.data;
+        if (!deletedColumnId) {
+          error('Board: Invalid COLUMN_DELETED data', message.data);
+          return;
+        }
+        columns = columns.filter(col => col.id !== deletedColumnId);
+        log('Board: Column removed from local state', { columnId: deletedColumnId });
+        break;
+
+      // TODO: Add cases for CARD_UPDATED, CARD_DELETED, CARD_MOVED, COLUMN_UPDATED, COLUMN_DELETED etc.
+      default:
+        log('Board: Received unknown command or command not handled yet:', message.command);
+    }
+  }
 
   function getColumnCards(columnId: string): Card[] {
     const column = columns.find(col => col.id === columnId);
@@ -175,6 +248,9 @@
   function deleteColumn(columnId: string) {
     log('deleteColumn function called with columnId:', columnId);
     
+    // Add this log to check the length
+    log(`Checking columns.length before delete check: ${columns.length}`);
+
     if (columns.length <= 1) {
       error('Cannot delete the last column in a board', null);
       log('Cannot delete column: only one column left in board');

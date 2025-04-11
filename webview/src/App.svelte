@@ -108,7 +108,8 @@
 		case Commands.COLUMN_ADDED:
 		case Commands.COLUMN_UPDATED:
 		case Commands.COLUMN_DELETED:
-		  log(`App received ${message.command} message - no need to forward to Board component`, message.data);
+		  // These messages are handled by the Board component
+		  // DO NOT forward these messages - they're already coming from the extension
 		  break;
 		case Commands.CARD_ADDED:
 		case "cardAdded":
@@ -168,6 +169,31 @@
 		case Commands.LOG:
 		case Commands.ERROR:
 		  // Ignore log and error messages
+		  break;
+		case Commands.COLUMN_ADDED:
+		case "columnAdded":
+		  log(`App received ${message.command} message - updating board state`, message.data);
+		  if (message.data && message.data.success && message.data.column && currentBoardData) {
+			const { column: newColumn, boardId } = message.data;
+
+			// Ensure the message is for the currently loaded board
+			if (currentBoardData.id === boardId) {
+			  const updatedColumns = [...currentBoardData.columns, newColumn];
+			  
+			  // Sort columns by order just in case (optional, but good practice)
+			  updatedColumns.sort((a, b) => a.order - b.order);
+			  
+			  currentBoardData = { ...currentBoardData, columns: updatedColumns };
+			  log('App board state updated after COLUMN_ADDED', JSON.stringify(currentBoardData));
+			} else {
+			  log('COLUMN_ADDED message received for a different board, ignoring.', { currentBoard: currentBoardData.id, messageBoard: boardId });
+			}
+		  } else {
+			log('COLUMN_ADDED message received but data is invalid or board not loaded.', message.data);
+		  }
+		  break;
+		case Commands.COLUMN_UPDATED:
+		  // Handle COLUMN_UPDATED (Example - Adapt as needed)
 		  break;
 		default:
 		  // Only log unknown messages that aren't handled by child components
