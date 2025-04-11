@@ -29,13 +29,41 @@ export async function handleCreateBoard(
 
   try {
     // Create a new board
+    const now = new Date().toISOString();
+    const defaultColumns = [
+      {
+        id: uuidv4(),
+        title: "To Do",
+        cards: [],
+        order: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: uuidv4(),
+        title: "In Progress",
+        cards: [],
+        order: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: uuidv4(),
+        title: "Done",
+        cards: [],
+        order: 2,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
     const newBoard: Board = {
       id: message.data.id || generateId(),
       title: message.data.title,
       description: message.data.description || "",
-      columns: [],
-      createdAt: message.data.createdAt || new Date().toISOString(),
-      updatedAt: message.data.updatedAt || new Date().toISOString(),
+      columns: defaultColumns,
+      createdAt: message.data.createdAt || now,
+      updatedAt: message.data.updatedAt || now,
     };
 
     // Save the board

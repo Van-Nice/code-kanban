@@ -111,47 +111,6 @@
 		  // These messages are handled by the Board component
 		  // DO NOT forward these messages - they're already coming from the extension
 		  break;
-		case Commands.CARD_ADDED:
-		case "cardAdded":
-		  if (message.data && message.data.success && message.data.card && currentBoardData) {
-			const { card, columnId } = message.data;
-			log(`App received CARD_ADDED, updating board state for card ${card.id} in column ${columnId}`);
-
-			const targetColumnIndex = currentBoardData.columns.findIndex(col => col.id === columnId);
-
-			if (targetColumnIndex !== -1) {
-			  // 1. Get the original column from the *current* state
-			  const originalColumn = currentBoardData.columns[targetColumnIndex];
-			  
-			  // 2. Create the new cards array based on the *original* column's cards
-			  const updatedCards = [...(originalColumn.cards || []), card];
-			  
-			  // 3. Create a new column object with the updated cards
-			  const newColumnObject = { 
-				...originalColumn, 
-				cards: updatedCards 
-			  };
-
-			  // 4. Create the new columns array, replacing the old column with the new one
-			  const updatedColumns = currentBoardData.columns.map((col, index) => 
-				index === targetColumnIndex ? newColumnObject : col
-			  );
-
-			  // 5. Update the state with the new columns array
-			  currentBoardData = { 
-				...currentBoardData, 
-				columns: updatedColumns, 
-				updatedAt: new Date().toISOString() // Update timestamp
-			  };
-			  
-			  log('App board state updated after CARD_ADDED', JSON.stringify(currentBoardData));
-			} else {
-			  error('CARD_ADDED handler in App: Column not found', { columnId });
-			}
-		  } else {
-			error('App received invalid CARD_ADDED message or board data missing', message.data);
-		  }
-		  break;
 		case Commands.CARD_UPDATED:
 		case Commands.CARD_DELETED:
 		case Commands.CARD_MOVED:
@@ -202,7 +161,6 @@
 			Commands.COLUMN_ADDED,
 			Commands.COLUMN_UPDATED, 
 			Commands.COLUMN_DELETED,
-			Commands.CARD_ADDED,
 			Commands.CARD_UPDATED, 
 			Commands.CARD_DELETED,
 			Commands.CARD_MOVED

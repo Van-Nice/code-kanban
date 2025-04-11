@@ -96,6 +96,12 @@
           // Update the columns array immutably to ensure reactivity
           columns = columns.map((col, index) => {
             if (index === cardColumnIndex) {
+              // Defensive check: Only add the card if it doesn't already exist in the local state
+              const cardExists = (col.cards || []).some((card: Card) => card.id === newCard.id);
+              if (cardExists) {
+                log('Board: Card already exists in local state, skipping add.', { cardId: newCard.id, columnId: col.id });
+                return col; // Return column unchanged
+              }
               // Create a new column object with the new card added to the beginning of its cards array
               return { 
                 ...col, 
