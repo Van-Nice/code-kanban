@@ -317,7 +317,7 @@
         title: newCard.title,
         description: newCard.description,
         labels: newCard.labels,
-        assignee: newCard.assignee
+        assignee: String(newCard.assignee || '')
       }
     });
     log('addCard message sent to extension');
@@ -477,16 +477,16 @@
     sendMessage({
       command: Commands.ADD_CARD,
       data: {
-        boardId: boardId, 
+        boardId,
         columnId: targetColumnId,
-        title: "Hardcoded Test Title", 
-        description: "Test", 
-        labels: [], 
-        assignee: "Test"
+        title: newCardTitle,
+        description: String(newCardDescription || ''),
+        labels: [...newCardLabels],
+        assignee: String(newCardAssignee || '')
       }
     });
     
-    log('Card creation message sent to extension');
+    log('Card creation message sent with all fields');
   }
   
   function cancelCardCreation() {
