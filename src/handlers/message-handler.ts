@@ -5,11 +5,26 @@ import {
   WebviewResponse,
   LogMessage,
   ErrorMessage,
+  ShowErrorMessageMessage,
 } from "./messages";
 import { Logger } from "./logger";
 import { BoardStorage } from "./board/board-storage";
 import { Commands } from "../shared/commands";
 import { directAddCard } from "./direct-add-card";
+import * as handlers from ".";
+import { handleAddCard } from "./card/add-card-handler";
+import { handleUpdateCard } from "./card/update-card-handler";
+import { handleDeleteCard } from "./card/delete-card-handler";
+import { handleMoveCard } from "./card/move-card-handler";
+import { handleAddColumn } from "./column/add-column-handler";
+import { handleUpdateColumn } from "./column/update-column-handler";
+import { handleDeleteColumn } from "./column/delete-column-handler";
+import { handleGetBoards } from "./board/get-boards-handler";
+import { handleGetBoard } from "./board/get-board-handler";
+import { handleCreateBoard } from "./board/create-board-handler";
+import { handleDeleteBoard } from "./board/delete-board-handler";
+import { handleOpenBoardInEditor } from "./board/open-board-in-editor-handler";
+import { handleBoardLoaded } from "./board/board-loaded-handler";
 
 export interface HandlerContext {
   storage: BoardStorage;
@@ -245,8 +260,6 @@ export class MessageHandler {
   }
 }
 
-import * as handlers from ".";
-
 // Add a handler for executeCommand
 export async function handleExecuteCommand(
   message: any,
@@ -274,23 +287,40 @@ export async function handleExecuteCommand(
   }
 }
 
-const handlerMap: { [command: string]: HandlerFunction<any> } = {
-  [Commands.LOG]: handlers.handleLog,
-  [Commands.ERROR]: handlers.handleError,
-  [Commands.GET_BOARDS]: handlers.handleGetBoards,
-  [Commands.GET_BOARD]: handlers.handleGetBoard,
-  [Commands.CREATE_BOARD]: handlers.handleCreateBoard,
-  [Commands.DELETE_BOARD]: handlers.handleDeleteBoard,
-  [Commands.UPDATE_BOARD]: handlers.handleUpdateBoard,
-  [Commands.BOARD_LOADED]: handlers.handleBoardLoaded,
-  [Commands.ADD_CARD]: handlers.handleAddCard,
-  [Commands.UPDATE_CARD]: handlers.handleUpdateCard,
-  [Commands.DELETE_CARD]: handlers.handleDeleteCard,
-  [Commands.MOVE_CARD]: handlers.handleMoveCard,
-  [Commands.ADD_COLUMN]: handlers.handleAddColumn,
-  [Commands.UPDATE_COLUMN]: handlers.handleUpdateColumn,
-  [Commands.DELETE_COLUMN]: handlers.handleDeleteColumn,
-  [Commands.OPEN_BOARD_IN_EDITOR]: handlers.handleOpenBoardInEditor,
-  [Commands.SHOW_ERROR_MESSAGE]: handlers.handleShowErrorMessage,
+const handlerMap: Record<
+  string,
+  (message: any, context: HandlerContext) => Promise<WebviewResponse | void>
+> = {
+  [Commands.GET_BOARDS]: handleGetBoards,
+  [Commands.GET_BOARD]: handleGetBoard,
+  [Commands.CREATE_BOARD]: handleCreateBoard,
+  [Commands.DELETE_BOARD]: handleDeleteBoard,
+  [Commands.OPEN_BOARD_IN_EDITOR]: handleOpenBoardInEditor,
+  boardLoaded: handleBoardLoaded,
+
+  [Commands.ADD_COLUMN]: handleAddColumn,
+  [Commands.UPDATE_COLUMN]: handleUpdateColumn,
+  [Commands.DELETE_COLUMN]: handleDeleteColumn,
+
+  // Use Command constants for Card operations
+  [Commands.ADD_CARD]: handleAddCard,
+  [Commands.UPDATE_CARD]: handleUpdateCard,
+  [Commands.DELETE_CARD]: handleDeleteCard,
+  [Commands.MOVE_CARD]: handleMoveCard,
+
+  // Utility/other commands (Ensure handlers exist or are implemented)
+  log: async (message: LogMessage, context: HandlerContext) => {
+    context.logger.debug(message.data.message, message.data.data);
+  },
+  error: async (message: ErrorMessage, context: HandlerContext) => {
+    context.logger.error(message.data.message, message.data.error);
+  },
+  showErrorMessage: async (
+    message: ShowErrorMessageMessage,
+    _context: HandlerContext
+  ) => {
+    vscode.window.showErrorMessage(message.data.message);
+  },
   executeCommand: handleExecuteCommand,
+  // Add other handlers as needed
 };

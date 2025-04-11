@@ -18,7 +18,12 @@ export interface Storage {
   getCard(id: string): Promise<Card | null>;
   getCards(columnId: string): Promise<Card[]>;
   deleteCard(id: string): Promise<void>;
-  moveCard(cardId: string, newColumnId: string): Promise<void>;
+  moveCard(
+    cardId: string,
+    fromColumnId: string,
+    toColumnId: string,
+    position: number
+  ): Promise<void>;
 
   // Data management
   clear(): Promise<void>;

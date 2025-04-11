@@ -216,7 +216,19 @@
         log('Board: Card deleted from local state', { cardId: deletedCardId, columnId: targetDeleteColumnId });
         break;
 
-      // TODO: Add cases for CARD_MOVED etc.
+      case Commands.CARD_MOVED:
+        log('Board: Received CARD_MOVED', message.data);
+        const { newColumns } = message.data;
+        if (!newColumns || !Array.isArray(newColumns)) {
+          error('Board: Invalid CARD_MOVED data - missing or invalid newColumns', message.data);
+          return;
+        }
+        // Replace local columns state with the updated columns from the extension
+        // Ensure nested cards arrays exist
+        columns = newColumns.map((col: Column) => ({ ...col, cards: col.cards || [] }));
+        log('Board: Columns state updated after card move.');
+        break;
+
       default:
         log('Board: Received unknown command or command not handled yet:', message.command);
     }

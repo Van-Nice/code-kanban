@@ -214,11 +214,9 @@
       try {
         const cardData = JSON.parse(event.dataTransfer.getData('text/plain'));
         const { cardId, fromColumnId } = cardData;
-        if (fromColumnId !== id) {
-          const position = dragOverIndex >= 0 ? dragOverIndex : cards.length;
-          log(`Dropping card ${cardId} at position ${position} in column ${id}`);
-          onCardMoved({ cardId, fromColumnId, toColumnId: id, position });
-        }
+        const position = dragOverIndex >= 0 ? dragOverIndex : cards.length;
+        log(`Dropping card ${cardId} from ${fromColumnId} at position ${position} in column ${id}`);
+        onCardMoved({ cardId, fromColumnId, toColumnId: id, position });
       } catch (err) {
         console.error('Error parsing drag data:', err);
       }

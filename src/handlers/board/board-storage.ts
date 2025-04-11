@@ -865,34 +865,65 @@ export class BoardStorage implements Storage {
     await this.saveData(data);
   }
 
-  public async moveCard(cardId: string, newColumnId: string): Promise<void> {
+  // Move card, handling both inter-column and intra-column moves
+  public async moveCard(
+    cardId: string,
+    fromColumnId: string,
+    toColumnId: string,
+    position: number // 0-based index for insertion
+  ): Promise<void> {
     const data = this.getData();
     const card = data.cards.get(cardId);
-    const newColumn = data.columns.get(newColumnId);
+    const fromColumn = data.columns.get(fromColumnId);
+    const toColumn = data.columns.get(toColumnId);
 
-    if (!card || !newColumn) {
-      return;
+    if (!card || !fromColumn || !toColumn) {
+      console.error(
+        `Cannot move card: Card (${!!card}), fromColumn (${!!fromColumn}), or toColumn (${!!toColumn}) not found.`
+      );
+      throw new Error(
+        `Card, source column, or destination column not found during move operation.`
+      );
     }
 
-    // Remove from old column
-    const oldColumn = data.columns.get(card.columnId);
-    if (oldColumn) {
-      oldColumn.cardIds = oldColumn.cardIds.filter((cId) => cId !== cardId);
-      data.columns.set(card.columnId, oldColumn);
+    // 1. Remove from source column's cardIds
+    const currentCardIndex = fromColumn.cardIds.indexOf(cardId);
+    if (currentCardIndex === -1) {
+      console.warn(
+        `Card ${cardId} not found in source column ${fromColumnId} cardIds during move.`
+      );
+      // Attempt to continue, but log this anomaly
+    } else {
+      fromColumn.cardIds.splice(currentCardIndex, 1);
     }
 
-    // Add to new column
-    if (!newColumn.cardIds.includes(cardId)) {
-      newColumn.cardIds.push(cardId);
-    }
+    // 2. Add to destination column's cardIds at the specified position
+    // Clamp position to valid range [0, toColumn.cardIds.length]
+    const insertPosition = Math.max(
+      0,
+      Math.min(position, toColumn.cardIds.length)
+    );
+    toColumn.cardIds.splice(insertPosition, 0, cardId);
 
-    // Update card
-    card.columnId = newColumnId;
+    // 3. Update the card's columnId
+    card.columnId = toColumnId;
+    card.updatedAt = new Date().toISOString(); // Update timestamp
 
+    // 4. Update the column timestamps
+    fromColumn.updatedAt = new Date().toISOString();
+    toColumn.updatedAt = new Date().toISOString();
+
+    // 5. Update the maps in storage data
     data.cards.set(cardId, card);
-    data.columns.set(newColumnId, newColumn);
+    data.columns.set(fromColumnId, fromColumn);
+    // Ensure we update the destination column even if it's the same as source
+    data.columns.set(toColumnId, toColumn);
 
+    // 6. Save the modified data
     await this.saveData(data);
+    console.log(
+      `Card ${cardId} moved from ${fromColumnId} to ${toColumnId} at position ${insertPosition}`
+    );
   }
 
   public async clear(): Promise<void> {

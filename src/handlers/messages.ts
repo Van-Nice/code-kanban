@@ -1,5 +1,6 @@
 import { Board, Column, Card } from "../models/board";
 import { Commands, CommandType } from "../shared/commands";
+import type { Column as SharedColumn } from "../../shared/types";
 
 export interface WebviewMessageBase {
   command: CommandType | string;
@@ -248,6 +249,7 @@ export interface CardMovedResponse extends ResponseMessageBase {
     cardId: string;
     fromColumnId: string;
     toColumnId: string;
+    newColumns: SharedColumn[];
     error?: string;
   };
 }
