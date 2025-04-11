@@ -138,7 +138,30 @@
         log('Board: Column removed from local state', { columnId: deletedColumnId });
         break;
 
-      // TODO: Add cases for CARD_UPDATED, CARD_DELETED, CARD_MOVED, COLUMN_UPDATED, COLUMN_DELETED etc.
+      case Commands.COLUMN_UPDATED:
+        log('Board: Received COLUMN_UPDATED', message.data);
+        // Correctly destructure from message.data.column
+        const { column } = message.data;
+        if (!column || !column.id || column.title === undefined) {
+          error('Board: Invalid COLUMN_UPDATED data', message.data);
+          return;
+        }
+        const { id: updatedColumnId, title: updatedTitle } = column;
+        const updatedColumnIndex = columns.findIndex(col => col.id === updatedColumnId);
+        if (updatedColumnIndex !== -1) {
+          // Create a new object for the updated column to ensure reactivity
+          const updatedColumnData = { ...columns[updatedColumnIndex], title: updatedTitle };
+          // Update the columns array immutably
+          columns = columns.map((col, index) => 
+            index === updatedColumnIndex ? updatedColumnData : col
+          );
+          log('Board: Column title updated in local state', { columnId: updatedColumnId, newTitle: updatedTitle });
+        } else {
+          error('Board: Column not found for COLUMN_UPDATED', { columnId: updatedColumnId });
+        }
+        break;
+
+      // TODO: Add cases for CARD_UPDATED, CARD_DELETED, CARD_MOVED etc.
       default:
         log('Board: Received unknown command or command not handled yet:', message.command);
     }
