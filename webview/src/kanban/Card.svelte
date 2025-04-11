@@ -103,17 +103,6 @@
     };
     
     try {
-      // Send direct update message
-      log('Sending card update to extension', updatedCard);
-      sendMessage({
-        command: Commands.UPDATE_CARD,
-        data: { 
-          card: updatedCard, 
-          columnId,
-          boardId
-        }
-      });
-      
       // Optimistically update UI and propagate change
       onUpdateCard(updatedCard); // Call the prop to notify parent
       isEditing = false;       // Exit editing mode

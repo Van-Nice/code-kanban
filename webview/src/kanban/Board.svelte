@@ -429,8 +429,10 @@
       command: Commands.UPDATE_CARD,
       data: {
         boardId,
-        columnId: updatedCard.columnId, // Ensure columnId is included
-        card: updatedCard
+        columnId: updatedCard.columnId,
+        cardId: updatedCard.id,
+        title: updatedCard.title,
+        description: updatedCard.description || ''
       }
     });
     log('Board: UPDATE_CARD message sent to extension');

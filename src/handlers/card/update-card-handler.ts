@@ -1,4 +1,8 @@
-import { UpdateCardMessage, CardResponse } from "../messages";
+import {
+  UpdateCardMessage,
+  CardResponse,
+  CardUpdatedResponse,
+} from "../messages";
 import { HandlerContext } from "../message-handler";
 import {
   Board as HandlerBoard,
@@ -12,8 +16,14 @@ import { convertToModelCard } from "../../utils/type-conversions";
 export async function handleUpdateCard(
   message: UpdateCardMessage,
   context: HandlerContext
-): Promise<CardResponse> {
+): Promise<CardUpdatedResponse> {
   const { storage, logger } = context;
+
+  // ADDED: Log entry and received data
+  logger.debug(
+    "[handleUpdateCard] Handler invoked. Received data:",
+    message.data
+  );
 
   if (
     !message.data?.boardId ||
@@ -27,6 +37,8 @@ export async function handleUpdateCard(
       data: {
         success: false,
         error: "Missing required fields: boardId, columnId, cardId, or title",
+        boardId: message.data?.boardId || "",
+        columnId: message.data?.columnId || "",
       },
     };
   }
@@ -44,6 +56,8 @@ export async function handleUpdateCard(
         data: {
           success: false,
           error: `Board with ID ${message.data.boardId} not found`,
+          boardId: message.data.boardId,
+          columnId: message.data.columnId,
         },
       };
     }
@@ -97,7 +111,17 @@ export async function handleUpdateCard(
           updatedAt: new Date(board.updatedAt),
         };
 
+        // ADDED: Log before saving
+        logger.debug(
+          `[handleUpdateCard] Attempting to save board ${modelBoard.id} after updating card ${card.id}`
+        );
+
         await storage.saveBoard(modelBoard);
+
+        // ADDED: Log after saving
+        logger.debug(
+          `[handleUpdateCard] Successfully saved board ${modelBoard.id}`
+        );
 
         logger.debug(
           `Card with ID ${message.data.cardId} updated successfully`
@@ -122,6 +146,8 @@ export async function handleUpdateCard(
           data: {
             success: true,
             card: responseCard,
+            columnId: card.columnId,
+            boardId: message.data.boardId,
           },
         };
       }
@@ -133,6 +159,8 @@ export async function handleUpdateCard(
       data: {
         success: false,
         error: `Card with ID ${message.data.cardId} not found`,
+        boardId: message.data.boardId,
+        columnId: message.data.columnId,
       },
     };
   } catch (error) {
@@ -144,6 +172,8 @@ export async function handleUpdateCard(
         error: `Failed to update card: ${
           error instanceof Error ? error.message : String(error)
         }`,
+        boardId: message.data?.boardId || "",
+        columnId: message.data?.columnId || "",
       },
     };
   }
