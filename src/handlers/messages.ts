@@ -1,7 +1,8 @@
 import { Board, Column, Card } from "../models/board";
+import { Commands, CommandType } from "../shared/commands";
 
 export interface WebviewMessageBase {
-  command: string;
+  command: CommandType | string;
 }
 
 export interface LogMessage extends WebviewMessageBase {
@@ -83,8 +84,16 @@ export interface MoveCardMessage extends WebviewMessageBase {
 }
 
 export interface OpenBoardInEditorMessage extends WebviewMessageBase {
-  command: "openBoardInEditor";
+  command: typeof Commands.OPEN_BOARD_IN_EDITOR;
   data: { boardId: string };
+}
+
+export interface OpenBoardInEditorResponse extends ResponseMessageBase {
+  command: typeof Commands.BOARD_OPENED_IN_EDITOR;
+  data: {
+    success: boolean;
+    error?: string;
+  };
 }
 
 export interface ShowErrorMessageMessage extends WebviewMessageBase {
@@ -93,7 +102,7 @@ export interface ShowErrorMessageMessage extends WebviewMessageBase {
 }
 
 export interface AddColumnMessage extends WebviewMessageBase {
-  command: "addColumn";
+  command: typeof Commands.ADD_COLUMN;
   data: {
     boardId: string;
     columnId?: string;
@@ -102,7 +111,7 @@ export interface AddColumnMessage extends WebviewMessageBase {
 }
 
 export interface UpdateColumnMessage extends WebviewMessageBase {
-  command: "updateColumn";
+  command: typeof Commands.UPDATE_COLUMN;
   data: {
     boardId: string;
     columnId: string;
@@ -111,7 +120,7 @@ export interface UpdateColumnMessage extends WebviewMessageBase {
 }
 
 export interface DeleteColumnMessage extends WebviewMessageBase {
-  command: "deleteColumn";
+  command: typeof Commands.DELETE_COLUMN;
   data: {
     boardId: string;
     columnId: string;
@@ -155,7 +164,7 @@ export type WebviewMessage =
   | WebviewMessageBase;
 
 export interface ResponseMessageBase {
-  command: string;
+  command: CommandType | string;
   data: {
     success: boolean;
     error?: string;
@@ -244,7 +253,7 @@ export interface CardMovedResponse extends ResponseMessageBase {
 }
 
 export interface ColumnResponse extends ResponseMessageBase {
-  command: "columnUpdated" | "columnAdded";
+  command: typeof Commands.COLUMN_ADDED | typeof Commands.COLUMN_UPDATED;
   data: {
     success: boolean;
     column?: Column;
@@ -257,7 +266,7 @@ export interface ColumnResponse extends ResponseMessageBase {
 }
 
 export interface ColumnDeletedResponse extends ResponseMessageBase {
-  command: "columnDeleted";
+  command: typeof Commands.COLUMN_DELETED;
   data: {
     success: boolean;
     columnId?: string;
@@ -294,7 +303,7 @@ export interface BoardAddedResponse {
 }
 
 export interface ColumnAddedResponse {
-  command: "columnAdded";
+  command: typeof Commands.COLUMN_ADDED;
   data: {
     success: boolean;
     boardId: string;
@@ -304,7 +313,7 @@ export interface ColumnAddedResponse {
 }
 
 export interface ColumnUpdatedResponse {
-  command: "columnUpdated";
+  command: typeof Commands.COLUMN_UPDATED;
   data: {
     success: boolean;
     boardId: string;

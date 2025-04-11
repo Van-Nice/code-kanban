@@ -4,6 +4,7 @@ import { sanitizeString } from "../utils";
 import { Board as HandlerBoard, Column as HandlerColumn } from "../board/board";
 import { Board as ModelBoard, Column as ModelColumn } from "../../models/board";
 import { convertToModelColumn } from "../../utils/type-conversions";
+import { Commands } from "../../shared/commands";
 
 export async function handleUpdateColumn(
   message: UpdateColumnMessage,
@@ -18,7 +19,7 @@ export async function handleUpdateColumn(
   ) {
     logger.error("Missing required fields for column update");
     return {
-      command: "columnUpdated",
+      command: Commands.COLUMN_UPDATED,
       data: {
         success: false,
         error: "Missing required fields: boardId, columnId, or title",
@@ -35,7 +36,7 @@ export async function handleUpdateColumn(
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
-        command: "columnUpdated",
+        command: Commands.COLUMN_UPDATED,
         data: {
           success: false,
           error: `Board with ID ${message.data.boardId} not found`,
@@ -50,7 +51,7 @@ export async function handleUpdateColumn(
     if (columnIndex === -1) {
       logger.error(`Column with ID ${message.data.columnId} not found`);
       return {
-        command: "columnUpdated",
+        command: Commands.COLUMN_UPDATED,
         data: {
           success: false,
           error: `Column with ID ${message.data.columnId} not found`,
@@ -122,7 +123,7 @@ export async function handleUpdateColumn(
     };
 
     return {
-      command: "columnUpdated",
+      command: Commands.COLUMN_UPDATED,
       data: {
         success: true,
         column: responseColumn,
@@ -131,7 +132,7 @@ export async function handleUpdateColumn(
   } catch (error) {
     logger.error("Error updating column:", error);
     return {
-      command: "columnUpdated",
+      command: Commands.COLUMN_UPDATED,
       data: {
         success: false,
         error: `Failed to update column: ${

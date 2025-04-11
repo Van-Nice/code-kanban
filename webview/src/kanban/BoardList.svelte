@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
   import type { Board } from './types'; 
+  import { Commands } from '../shared/commands';
   const { onBoardSelect } = $props<{
     onBoardSelect: (boardId: string) => void;
   }>();
@@ -40,18 +41,18 @@
 
     // Request boards from extension
     sendMessage({
-      command: 'getBoards',
+      command: Commands.GET_BOARDS,
       data: {}
     });
   });
 
   function handleExtensionMessage(message: any) {
     switch (message.command) {
-      case 'boardsLoaded':
+      case Commands.BOARDS_LOADED:
         boards = message.data.boards;
         isLoading = false;
         break;
-      case 'boardCreated':
+      case Commands.BOARD_CREATED:
         if (message.data.success) {
           boards = [...boards, message.data.board];
           isCreatingBoard = false;
@@ -59,7 +60,7 @@
           newBoardDescription = '';
         }
         break;
-      case 'boardDeleted':
+      case Commands.BOARD_DELETED:
         if (message.data.success) {
           boards = boards.filter(board => board.id !== message.data.boardId);
         }
@@ -83,7 +84,7 @@
 
     // Send message to extension
     sendMessage({
-      command: 'createBoard',
+      command: Commands.CREATE_BOARD,
       data: newBoard
     });
   }
@@ -93,7 +94,7 @@
     
     // Send message to extension
     sendMessage({
-      command: 'deleteBoard',
+      command: Commands.DELETE_BOARD,
       data: { boardId }
     });
   }
@@ -103,7 +104,7 @@
     
     // Send message to extension
     sendMessage({
-      command: 'openBoardInEditor',
+      command: Commands.OPEN_BOARD_IN_EDITOR,
       data: { boardId }
     });
   }

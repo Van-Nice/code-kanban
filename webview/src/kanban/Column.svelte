@@ -4,6 +4,7 @@
   import type { Card as CardType, Column as ColumnType } from '../types';
   import { log, error } from '../utils/vscodeMessaging';
   import { onMount, onDestroy } from 'svelte';
+  import { Commands } from '../shared/commands';
 
   const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard, onDeleteColumn, onUpdateColumn } = $props<{
     id: string;
@@ -349,9 +350,11 @@
                   <button
                     class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-errorForeground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
                     onclick={() => {
-                      if (confirm('Are you sure you want to delete this column and all its cards?')) {
-                        onDeleteColumn(id);
-                      }
+                      log('Delete column button clicked for column:', id);
+                      // Remove confirm dialog which might be blocking the event flow
+                      log('Directly calling onDeleteColumn for column:', id);
+                      onDeleteColumn(id);
+                      log('onDeleteColumn callback called for column:', id);
                       isMenuOpen = false;
                     }}
                   >

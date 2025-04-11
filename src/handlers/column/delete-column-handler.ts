@@ -1,8 +1,12 @@
-import { DeleteColumnMessage, ColumnDeletedResponse } from "../messages";
+import {
+  DeleteColumnMessage,
+  ColumnDeletedResponse,
+} from "../../shared/message-types";
 import { HandlerContext } from "../message-handler";
 import { Board as HandlerBoard, Column as HandlerColumn } from "../board/board";
 import { Board as ModelBoard, Column as ModelColumn } from "../../models/board";
 import { convertToModelColumn } from "../../utils/type-conversions";
+import { Commands } from "../../shared/commands";
 
 export async function handleDeleteColumn(
   message: DeleteColumnMessage,
@@ -13,7 +17,7 @@ export async function handleDeleteColumn(
   if (!message.data?.boardId || !message.data?.columnId) {
     logger.error("Missing required fields for column deletion");
     return {
-      command: "columnDeleted",
+      command: Commands.COLUMN_DELETED,
       data: {
         success: false,
         error: "Missing required fields: boardId or columnId",
@@ -30,7 +34,7 @@ export async function handleDeleteColumn(
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
-        command: "columnDeleted",
+        command: Commands.COLUMN_DELETED,
         data: {
           success: false,
           error: `Board with ID ${message.data.boardId} not found`,
@@ -45,7 +49,7 @@ export async function handleDeleteColumn(
     if (columnIndex === -1) {
       logger.error(`Column with ID ${message.data.columnId} not found`);
       return {
-        command: "columnDeleted",
+        command: Commands.COLUMN_DELETED,
         data: {
           success: false,
           error: `Column with ID ${message.data.columnId} not found`,
@@ -96,7 +100,7 @@ export async function handleDeleteColumn(
       `Column with ID ${message.data.columnId} deleted successfully`
     );
     return {
-      command: "columnDeleted",
+      command: Commands.COLUMN_DELETED,
       data: {
         success: true,
         columnId: message.data.columnId,
@@ -105,7 +109,7 @@ export async function handleDeleteColumn(
   } catch (error) {
     logger.error("Error deleting column:", error);
     return {
-      command: "columnDeleted",
+      command: Commands.COLUMN_DELETED,
       data: {
         success: false,
         error: `Failed to delete column: ${

@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { log, error } from '../utils/vscodeMessaging';
   import type { Card as CardType } from './types';
+  import { Commands } from '../shared/commands';
 
   const { 
     id, 
@@ -95,7 +96,7 @@
       // Send direct update message
       log('Sending card update to extension', updatedCard);
       sendMessage({
-        command: 'updateCard',
+        command: Commands.UPDATE_CARD,
         data: { 
           card: updatedCard, 
           columnId,
@@ -110,7 +111,7 @@
         log(`🔵 LISTENER: Received message in Card listener: ${msg.command}`);
         
         // For any cardUpdated message, log it for debugging
-        if (msg.command === 'cardUpdated') {
+        if (msg.command === Commands.CARD_UPDATED) {
           log(`🔵 LISTENER: Card update response received`);
           log(`🔵 LISTENER: Response for card ID: ${msg.data?.card?.id}`);
           log(`🔵 LISTENER: Expected card ID: ${specificCardId}`);
@@ -119,7 +120,7 @@
         }
         
         // Check if this response is for our specific card
-        if (msg.command === 'cardUpdated' && 
+        if (msg.command === Commands.CARD_UPDATED && 
             msg.data?.card?.id === specificCardId) {
           log('🔵 LISTENER: Found matching response for our card!');
           
@@ -174,7 +175,7 @@
       error('Error updating card', err);
       // Use VS Code notification API via message instead of alert
       sendMessage({
-        command: 'showErrorMessage',
+        command: Commands.SHOW_ERROR_MESSAGE,
         data: { message: 'Failed to save card changes. Please try again.' }
       });
     }
@@ -187,7 +188,7 @@
   function deleteCard() {
     // Send message to extension
     sendMessage({
-      command: 'deleteCard',
+      command: Commands.DELETE_CARD,
       data: { 
         cardId: id, 
         columnId,

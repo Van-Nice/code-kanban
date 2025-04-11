@@ -4,6 +4,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
   import type { Board, Column, Card } from '../types';
+  import { Commands } from '../shared/commands';
 
   let { boardId } = $props<{
     boardId: string;
@@ -53,7 +54,7 @@
 
   function handleExtensionMessage(message: any) {
     switch (message.command) {
-      case 'boardLoaded':
+      case Commands.BOARD_LOADED:
         if (message.data.success) {
           boardTitle = message.data.title;
           boardUpdatedAt = message.data.updatedAt;
@@ -67,7 +68,7 @@
           isLoading = false;
         }
         break;
-      case 'columnUpdated':
+      case Commands.COLUMN_UPDATED:
         if (message.data.success && message.data.column) {
           columns = columns.map((col: Column) => 
             col.id === message.data.column.id ? {
@@ -79,7 +80,7 @@
           boardUpdatedAt = message.data.updatedAt;
         }
         break;
-      case 'cardAdded':
+      case Commands.CARD_ADDED:
         if (message.data.success) {
           const { card, columnId } = message.data;
           columns = columns.map(col => {
@@ -93,7 +94,7 @@
           });
         }
         break;
-      case 'cardUpdated':
+      case Commands.CARD_UPDATED:
         if (message.data.success) {
           const { card } = message.data;
           columns = columns.map(col => {
@@ -107,7 +108,7 @@
           });
         }
         break;
-      case 'cardDeleted':
+      case Commands.CARD_DELETED:
         if (message.data.success) {
           const { cardId, columnId } = message.data;
           columns = columns.map(col => {
@@ -121,7 +122,7 @@
           });
         }
         break;
-      case 'cardMoved':
+      case Commands.CARD_MOVED:
         if (message.data.success) {
           const { cardId, fromColumnId, toColumnId, position } = message.data;
           columns = columns.map(col => {
@@ -146,19 +147,19 @@
           });
         }
         break;
-      case 'columnAdded':
+      case Commands.COLUMN_ADDED:
         if (message.data.success) {
           const { column } = message.data;
           columns = [...columns, column];
         }
         break;
-      case 'columnDeleted':
+      case Commands.COLUMN_DELETED:
         if (message.data.success) {
           const { columnId } = message.data;
           columns = columns.filter(col => col.id !== columnId);
         }
         break;
-      case 'boardUpdated':
+      case Commands.BOARD_UPDATED:
         if (message.data.success && message.data.board) {
           boardTitle = message.data.board.title;
           boardUpdatedAt = message.data.board.updatedAt;
@@ -189,7 +190,7 @@
     };
 
     sendMessage({
-      command: 'addCard',
+      command: Commands.ADD_CARD,
       data: { card: newCard, columnId, boardId }
     });
   }
@@ -197,7 +198,7 @@
   function handleCardMove(data: { cardId: string, fromColumnId: string, toColumnId: string, position?: number }) {
     const { cardId, fromColumnId, toColumnId, position } = data;
     sendMessage({
-      command: 'moveCard',
+      command: Commands.MOVE_CARD,
       data: { cardId, fromColumnId, toColumnId, position, boardId }
     });
   }
@@ -213,7 +214,7 @@
     };
     
     sendMessage({
-      command: 'addColumn',
+      command: Commands.ADD_COLUMN,
       data: { 
         boardId,
         columnId: newColumn.id,
@@ -224,7 +225,7 @@
 
   function updateColumn(column: Column) {
     sendMessage({
-      command: 'updateColumn',
+      command: Commands.UPDATE_COLUMN,
       data: { column, boardId }
     });
   }
@@ -251,15 +252,20 @@
   }
 
   function deleteColumn(columnId: string) {
+    log('deleteColumn function called with columnId:', columnId);
+    
     if (columns.length <= 1) {
       error('Cannot delete the last column in a board', null);
+      log('Cannot delete column: only one column left in board');
       return;
     }
     
+    log('Sending deleteColumn message to extension with data:', { columnId, boardId });
     sendMessage({
-      command: 'deleteColumn',
+      command: Commands.DELETE_COLUMN,
       data: { columnId, boardId }
     });
+    log('deleteColumn message sent to extension');
   }
 
   function requestBoardData() {
@@ -269,14 +275,14 @@
     }
 
     sendMessage({
-      command: 'getBoard',
+      command: Commands.GET_BOARD,
       data: { boardId }
     });
   }
 
   function handleCardUpdated(card: Card) {
     sendMessage({
-      command: 'updateCard',
+      command: Commands.UPDATE_CARD,
       data: { card, boardId }
     });
   }
@@ -285,7 +291,7 @@
     const column = columns.find(col => col.cards.some(c => c.id === cardId));
     if (column) {
       sendMessage({
-        command: 'deleteCard',
+        command: Commands.DELETE_CARD,
         data: { cardId, columnId: column.id, boardId }
       });
     }
@@ -346,7 +352,7 @@
 
     log('📝 Sending addCard message to extension');
     sendMessage({
-      command: 'addCard',
+      command: Commands.ADD_CARD,
       data: { card: newCard, columnId: targetColumnId, boardId }
     });
     

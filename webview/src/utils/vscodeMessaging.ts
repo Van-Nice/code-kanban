@@ -1,3 +1,5 @@
+import { Commands } from "../shared/commands";
+
 export interface VSCodeMessage {
   command: string;
   data?: any;
@@ -70,7 +72,7 @@ export function sendMessage(message: VSCodeMessage) {
   console.log("Sending message to extension:", message);
 
   // Special handling for updateCard - critical persistence operation
-  if (message.command === "updateCard") {
+  if (message.command === Commands.UPDATE_CARD) {
     console.log(
       "🔴 DIRECT SEND: updateCard message data:",
       JSON.stringify(message.data, null, 2)

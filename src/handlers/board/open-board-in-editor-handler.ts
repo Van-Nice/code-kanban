@@ -1,14 +1,10 @@
 import * as vscode from "vscode";
-import { OpenBoardInEditorMessage } from "../messages";
+import {
+  OpenBoardInEditorMessage,
+  OpenBoardInEditorResponse,
+} from "../messages";
 import { HandlerContext } from "../message-handler";
-
-interface OpenBoardInEditorResponse {
-  command: "boardOpenedInEditor";
-  data: {
-    success: boolean;
-    error?: string;
-  };
-}
+import { Commands } from "../../shared/commands";
 
 export async function handleOpenBoardInEditor(
   message: OpenBoardInEditorMessage,
@@ -19,7 +15,7 @@ export async function handleOpenBoardInEditor(
   if (!message.data?.boardId) {
     logger.error("Missing boardId for openBoardInEditor command");
     return {
-      command: "boardOpenedInEditor",
+      command: Commands.BOARD_OPENED_IN_EDITOR,
       data: {
         success: false,
         error: "Missing boardId",
@@ -34,7 +30,7 @@ export async function handleOpenBoardInEditor(
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
-        command: "boardOpenedInEditor",
+        command: Commands.BOARD_OPENED_IN_EDITOR,
         data: {
           success: false,
           error: `Board with ID ${message.data.boardId} not found`,
@@ -49,7 +45,7 @@ export async function handleOpenBoardInEditor(
       message.data.boardId
     );
     return {
-      command: "boardOpenedInEditor",
+      command: Commands.BOARD_OPENED_IN_EDITOR,
       data: {
         success: true,
       },
@@ -61,7 +57,7 @@ export async function handleOpenBoardInEditor(
       `Failed to open board in editor: ${errorMessage}`
     );
     return {
-      command: "boardOpenedInEditor",
+      command: Commands.BOARD_OPENED_IN_EDITOR,
       data: {
         success: false,
         error: errorMessage,

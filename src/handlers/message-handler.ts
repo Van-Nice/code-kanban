@@ -8,6 +8,7 @@ import {
 } from "./messages";
 import { Logger } from "./logger";
 import { BoardStorage } from "./board/board-storage";
+import { Commands } from "../shared/commands";
 
 export interface HandlerContext {
   storage: BoardStorage;
@@ -94,43 +95,37 @@ export class MessageHandler {
   }
 
   public sendMessage(message: ResponseMessage | WebviewMessage): void {
-    if (message.command === "cardUpdated") {
-      const cardResponse = message as any;
-      console.log(
-        "🟢 RESPONSE: Sending cardUpdated response to webview:",
-        JSON.stringify(cardResponse.data, null, 2)
-      );
-      const sendTime = new Date().toISOString();
-      console.log(`🟢 RESPONSE: Timestamp ${sendTime}`);
-      try {
-        this.webview.postMessage(message);
-        console.log("🟢 RESPONSE: cardUpdated response sent successfully");
-      } catch (error) {
-        console.error(
-          "🟢 CRITICAL ERROR: Failed to send cardUpdated response:",
-          error
+    // Track command-specific metrics and add enhanced logging
+    switch (message.command) {
+      case Commands.CARD_UPDATED:
+        const cardResponse = message as any;
+        console.log(
+          "🟢 RESPONSE: Sending cardUpdated response to webview:",
+          JSON.stringify(cardResponse.data, null, 2)
         );
-      }
-      return;
-    } else if (message.command === "columnDeleted") {
-      const columnResponse = message as any;
-      console.log(
-        "🟢 RESPONSE: Sending columnDeleted response to webview:",
-        JSON.stringify(columnResponse.data, null, 2)
-      );
-      const sendTime = new Date().toISOString();
-      console.log(`🟢 RESPONSE: Timestamp ${sendTime}`);
-      try {
-        this.webview.postMessage(message);
-        console.log("🟢 RESPONSE: columnDeleted response sent successfully");
-      } catch (error) {
-        console.error(
-          "🟢 CRITICAL ERROR: Failed to send columnDeleted response:",
-          error
+        const sendTime = new Date().toISOString();
+        console.log(`🟢 RESPONSE: Timestamp ${sendTime}`);
+        try {
+          this.webview.postMessage(message);
+          console.log("🟢 RESPONSE: cardUpdated response sent successfully");
+        } catch (error) {
+          console.error(
+            "🟢 CRITICAL ERROR: Failed to send cardUpdated response:",
+            error
+          );
+        }
+        break;
+      case Commands.COLUMN_DELETED:
+        console.log(
+          "🟢 RESPONSE: Sending columnDeleted response to webview:",
+          JSON.stringify(message, null, 2)
         );
-      }
-      return;
+        break;
+      default:
+      // No special action needed
     }
+
+    // Always send the message
     this.webview.postMessage(message);
   }
 }
@@ -138,21 +133,21 @@ export class MessageHandler {
 import * as handlers from ".";
 
 const handlerMap: { [command: string]: HandlerFunction<any> } = {
-  log: handlers.handleLog,
-  error: handlers.handleError,
-  getBoards: handlers.handleGetBoards,
-  getBoard: handlers.handleGetBoard,
-  createBoard: handlers.handleCreateBoard,
-  deleteBoard: handlers.handleDeleteBoard,
-  updateBoard: handlers.handleUpdateBoard,
-  boardLoaded: handlers.handleBoardLoaded,
-  addCard: handlers.handleAddCard,
-  updateCard: handlers.handleUpdateCard,
-  deleteCard: handlers.handleDeleteCard,
-  moveCard: handlers.handleMoveCard,
-  addColumn: handlers.handleAddColumn,
-  updateColumn: handlers.handleUpdateColumn,
-  deleteColumn: handlers.handleDeleteColumn,
-  openBoardInEditor: handlers.handleOpenBoardInEditor,
-  showErrorMessage: handlers.handleShowErrorMessage,
+  [Commands.LOG]: handlers.handleLog,
+  [Commands.ERROR]: handlers.handleError,
+  [Commands.GET_BOARDS]: handlers.handleGetBoards,
+  [Commands.GET_BOARD]: handlers.handleGetBoard,
+  [Commands.CREATE_BOARD]: handlers.handleCreateBoard,
+  [Commands.DELETE_BOARD]: handlers.handleDeleteBoard,
+  [Commands.UPDATE_BOARD]: handlers.handleUpdateBoard,
+  [Commands.BOARD_LOADED]: handlers.handleBoardLoaded,
+  [Commands.ADD_CARD]: handlers.handleAddCard,
+  [Commands.UPDATE_CARD]: handlers.handleUpdateCard,
+  [Commands.DELETE_CARD]: handlers.handleDeleteCard,
+  [Commands.MOVE_CARD]: handlers.handleMoveCard,
+  [Commands.ADD_COLUMN]: handlers.handleAddColumn,
+  [Commands.UPDATE_COLUMN]: handlers.handleUpdateColumn,
+  [Commands.DELETE_COLUMN]: handlers.handleDeleteColumn,
+  [Commands.OPEN_BOARD_IN_EDITOR]: handlers.handleOpenBoardInEditor,
+  [Commands.SHOW_ERROR_MESSAGE]: handlers.handleShowErrorMessage,
 };

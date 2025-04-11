@@ -3,6 +3,7 @@
 	import BoardList from './kanban/BoardList.svelte';
 	import { onMount } from 'svelte';
 	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from './utils/vscodeMessaging';
+	import { Commands } from './shared/commands';
   
     let currentBoardId = $state<string | null>(null);
     let messageHandler: (message: any) => void;
@@ -76,7 +77,7 @@
 	  }
   
 	  switch (message.command) {
-		case 'boardLoaded':
+		case Commands.BOARD_LOADED:
 		  // Handle board loaded message
 		  if (message.data && message.data.success) {
 			log('Board loaded successfully', message.data);
@@ -91,9 +92,13 @@
 			error('Failed to load board', message.data);
 		  }
 		  break;
-		case 'columnUpdated':
-		case 'cardUpdated':
-		case 'cardMoved':
+		case Commands.COLUMN_ADDED:
+		case Commands.COLUMN_UPDATED:
+		case Commands.COLUMN_DELETED:
+		case Commands.CARD_ADDED:
+		case Commands.CARD_UPDATED:
+		case Commands.CARD_DELETED:
+		case Commands.CARD_MOVED:
 		  // These messages are handled by the Board component
 		  if (currentBoardId) {
 			sendMessage({
@@ -105,18 +110,38 @@
 		case 'themeChanged':
 		  theme = message.data.theme;
 		  break;
-		case 'boardsLoaded':
-		case 'boardCreated':
-		case 'boardDeleted':
+		case Commands.BOARDS_LOADED:
+		case Commands.BOARD_CREATED:
+		case Commands.BOARD_DELETED:
 		  // These messages are handled by the BoardList component
 		  break;
-		case 'log':
-		case 'error':
+		case Commands.LOG:
+		case Commands.ERROR:
 		  // Ignore log and error messages
+		  break;
+		case Commands.COLUMN_DELETED:
+		  // These messages are handled by the Board component
+		  if (currentBoardId) {
+			log('App.svelte: Forwarding COLUMN_DELETED message to Board component', message);
+			sendMessage({
+			  command: message.command,
+			  data: message.data
+			});
+			log('App.svelte: COLUMN_DELETED message forwarded to Board component');
+		  }
 		  break;
 		default:
 		  // Only log unknown messages that aren't handled by child components
-		  if (!['boardLoaded', 'columnUpdated', 'cardUpdated', 'cardMoved'].includes(message.command)) {
+		  if (![
+			Commands.BOARD_LOADED, 
+			Commands.COLUMN_ADDED,
+			Commands.COLUMN_UPDATED, 
+			Commands.COLUMN_DELETED,
+			Commands.CARD_ADDED,
+			Commands.CARD_UPDATED, 
+			Commands.CARD_DELETED,
+			Commands.CARD_MOVED
+		  ].includes(message.command)) {
 			log('Unknown message', message);
 		  }
 		  break;
