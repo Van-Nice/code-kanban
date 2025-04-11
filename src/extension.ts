@@ -44,28 +44,97 @@ export function activate(context: vscode.ExtensionContext) {
         // Set up message listener
         webviewView.webview.onDidReceiveMessage(
           async (message) => {
+            // Debug logging for ALL incoming messages
+            console.log(
+              `>>> SIDEBAR LISTENER: Received raw message:`,
+              JSON.stringify(message, null, 2)
+            );
             console.log(`Sidebar received message: ${message.command}`);
-            if (message.command === "updateCard") {
+
+            // Handle executeCommand messages
+            if (message.command === "executeCommand" && message.commandId) {
               console.log(
-                "⭐⭐⭐ CRITICAL UPDATE MESSAGE RECEIVED IN SIDEBAR - Details:",
+                `🔍 SIDEBAR: Executing command ${message.commandId} with args:`,
+                message.args
+              );
+
+              try {
+                // Execute the command directly
+                await vscode.commands.executeCommand(
+                  message.commandId,
+                  ...message.args
+                );
+                console.log(
+                  `🔍 SIDEBAR: Successfully executed command ${message.commandId}`
+                );
+              } catch (error) {
+                console.error(
+                  `🔍 SIDEBAR: Error executing command ${message.commandId}:`,
+                  error
+                );
+              }
+              return;
+            }
+
+            // Special case for addCardDirect command - bypass regular handling
+            if (message.command === "addCardDirect") {
+              console.log("🔴 DIRECT CARD CREATION REQUEST RECEIVED");
+              console.log(
+                "🔴 Card data:",
                 JSON.stringify(message.data, null, 2)
               );
 
-              // Extra logging for updateCard messages
-              console.log("⭐ CRITICAL UPDATE MESSAGE - Card Properties:");
-              console.log(`- Card ID: ${message.data?.card?.id}`);
-              console.log(`- Card Title: "${message.data?.card?.title}"`);
+              try {
+                // Create a modified message that matches what handleAddCard expects
+                const addCardMessage = {
+                  command: "addCard",
+                  data: message.data,
+                };
+
+                console.log(
+                  "🔴 Converting to standard addCard message:",
+                  JSON.stringify(addCardMessage, null, 2)
+                );
+
+                // Process with the message handler
+                await messageHandler.handleMessage(addCardMessage);
+                console.log("🔴 Direct card creation processed successfully");
+              } catch (error) {
+                console.error("🔴 Error in direct card creation:", error);
+              }
+              return;
+            }
+
+            if (
+              message.command === "updateCard" ||
+              message.command === "addCard"
+            ) {
+              console.log(
+                `⭐⭐⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE RECEIVED IN SIDEBAR - Details:`,
+                JSON.stringify(message.data, null, 2)
+              );
+
+              // Extra logging for card messages
+              console.log(
+                `⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE - Card Properties:`
+              );
+              if (message.command === "updateCard") {
+                console.log(`- Card ID: ${message.data?.card?.id}`);
+                console.log(`- Card Title: "${message.data?.card?.title}"`);
+              } else {
+                console.log(`- Title: "${message.data?.title}"`);
+              }
               console.log(`- Column ID: ${message.data?.columnId}`);
               console.log(`- Board ID: ${message.data?.boardId}`);
 
               try {
                 await messageHandler.handleMessage(message);
                 console.log(
-                  "⭐ CRITICAL UPDATE MESSAGE - Handler completed successfully"
+                  `⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE - Handler completed successfully`
                 );
               } catch (error) {
                 console.error(
-                  "⭐ CRITICAL UPDATE MESSAGE - Handler failed with error:",
+                  `⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE - Handler failed with error:`,
                   error
                 );
               }
@@ -132,7 +201,38 @@ export function activate(context: vscode.ExtensionContext) {
       // Set up message listener
       panel.webview.onDidReceiveMessage(
         async (message) => {
+          // Debug logging for ALL incoming messages
+          console.log(
+            `>>> EDITOR LISTENER: Received raw message:`,
+            JSON.stringify(message, null, 2)
+          );
           console.log(`Editor received message: ${message.command}`);
+
+          // Handle executeCommand messages
+          if (message.command === "executeCommand" && message.commandId) {
+            console.log(
+              `🔍 EDITOR: Executing command ${message.commandId} with args:`,
+              message.args
+            );
+
+            try {
+              // Execute the command directly
+              await vscode.commands.executeCommand(
+                message.commandId,
+                ...message.args
+              );
+              console.log(
+                `🔍 EDITOR: Successfully executed command ${message.commandId}`
+              );
+            } catch (error) {
+              console.error(
+                `🔍 EDITOR: Error executing command ${message.commandId}:`,
+                error
+              );
+            }
+            return;
+          }
+
           if (message.command === "updateCard") {
             console.log(
               "Extension received updateCard message:",
@@ -207,7 +307,38 @@ export function activate(context: vscode.ExtensionContext) {
       // Set up message listener
       panel.webview.onDidReceiveMessage(
         async (message) => {
+          // Debug logging for ALL incoming messages
+          console.log(
+            `>>> BOARD EDITOR LISTENER: Received raw message:`,
+            JSON.stringify(message, null, 2)
+          );
           console.log(`Board editor received message: ${message.command}`);
+
+          // Handle executeCommand messages
+          if (message.command === "executeCommand" && message.commandId) {
+            console.log(
+              `🔍 BOARD EDITOR: Executing command ${message.commandId} with args:`,
+              message.args
+            );
+
+            try {
+              // Execute the command directly
+              await vscode.commands.executeCommand(
+                message.commandId,
+                ...message.args
+              );
+              console.log(
+                `🔍 BOARD EDITOR: Successfully executed command ${message.commandId}`
+              );
+            } catch (error) {
+              console.error(
+                `🔍 BOARD EDITOR: Error executing command ${message.commandId}:`,
+                error
+              );
+            }
+            return;
+          }
+
           if (message.command === "updateCard") {
             console.log(
               "Extension received updateCard message:",
@@ -256,6 +387,79 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   extensionContext.subscriptions.push(disposable, openBoardInEditorDisposable);
+
+  // Register a direct command to add a card (accessible to all parts of the extension)
+  const directAddCardDisposable = vscode.commands.registerCommand(
+    "boogie.directAddCard",
+    async (
+      title: string,
+      columnId: string,
+      boardId: string,
+      description?: string,
+      labels?: string[],
+      assignee?: string
+    ) => {
+      console.log("🎯 Direct add card command called with:", {
+        title,
+        columnId,
+        boardId,
+        description,
+        labels,
+        assignee,
+      });
+
+      try {
+        // Create the storage directly
+        const { BoardStorage } = require("./handlers/board/board-storage");
+        const { v4: uuidv4 } = require("uuid");
+        const storage = new BoardStorage(context);
+
+        // Validate parameters
+        if (!title || !columnId || !boardId) {
+          console.error("🎯 DIRECT ADD CARD: Missing required fields");
+          return false;
+        }
+
+        // Create the new card
+        const newCard = {
+          id: uuidv4(),
+          title: title.slice(0, 100) || "",
+          description: description?.slice(0, 1000) || "",
+          columnId: columnId,
+          boardId: boardId,
+          labels: labels || [],
+          assignee: assignee || "",
+          order: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        console.log("🎯 DIRECT ADD CARD: Saving card:", newCard);
+
+        // Save the card directly
+        await storage.saveCard(newCard);
+
+        console.log("🎯 DIRECT ADD CARD: Card saved successfully!");
+
+        // Show a notification
+        vscode.window.showInformationMessage(
+          `Card "${title}" created successfully!`
+        );
+
+        return true;
+      } catch (err) {
+        console.error("🎯 Error in direct card creation:", err);
+        vscode.window.showErrorMessage(
+          `Failed to create card: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+        return false;
+      }
+    }
+  );
+
+  extensionContext.subscriptions.push(directAddCardDisposable);
 }
 
 // This method is called when your extension is deactivated

@@ -9,6 +9,7 @@ import {
 import { Logger } from "./logger";
 import { BoardStorage } from "./board/board-storage";
 import { Commands } from "../shared/commands";
+import { directAddCard } from "./direct-add-card";
 
 export interface HandlerContext {
   storage: BoardStorage;
@@ -51,11 +52,32 @@ export class MessageHandler {
 
   public async handleMessage(message: WebviewMessage): Promise<void> {
     try {
-      this.logger.debug("Received message from webview:", message);
-      this.logger.info("Webview context:", this.webviewContext);
+      console.log("📨 Raw message received:", JSON.stringify(message, null, 2));
 
-      if (!message || !message.command) {
-        throw new Error("Invalid message: missing command");
+      // Special detection for add card operation
+      if (
+        message &&
+        (message.command === "addCard" || message.command === Commands.ADD_CARD)
+      ) {
+        console.log("⭐⭐⭐ ADD CARD COMMAND DETECTED IN FIRST STAGE");
+        console.log("Message command type:", typeof message.command);
+        console.log("Message command value:", message.command);
+        console.log(
+          "Message data:",
+          JSON.stringify((message as any).data, null, 2)
+        );
+      }
+
+      console.log("📨 Received message:", JSON.stringify(message, null, 2));
+
+      // Add debug logging for addCard messages
+      if (message.command === "addCard") {
+        console.log("🎯🎯🎯 ADD CARD MESSAGE RECEIVED IN HANDLER");
+        console.log("🎯 Message command:", message.command);
+        console.log(
+          "🎯 Message data:",
+          JSON.stringify((message as any).data, null, 2)
+        );
       }
 
       const handlerContext: HandlerContext = {
@@ -66,15 +88,71 @@ export class MessageHandler {
         vscodeContext: this.context,
       };
 
-      const handlers = require(".");
+      // Get the handler for this command
       const handler = handlerMap[message.command];
+
+      // Log handler existence
+      console.log(`🔍 Looking for handler for command: ${message.command}`);
+      console.log(`🔍 Handler exists? ${!!handler}`);
+      console.log(`🔍 HandlerMap keys: ${Object.keys(handlerMap).join(", ")}`);
+
+      // Add debug logging for addCard handler
+      if (message.command === "addCard") {
+        console.log("🎯 HandlerMap keys:", Object.keys(handlerMap));
+        console.log("🎯 Commands.ADD_CARD value:", Commands.ADD_CARD);
+        console.log("🎯 Handler found:", !!handler);
+        console.log("🎯 Handler type:", handler ? typeof handler : "undefined");
+      }
+
       if (handler) {
+        console.log(`✅ Found handler for command: ${message.command}`);
+
+        if (message.command === "addCard") {
+          console.log("🎯 About to execute addCard handler");
+        }
+
         const response = await handler(message as any, handlerContext);
+
+        if (message.command === "addCard") {
+          console.log("🎯 AddCard handler executed");
+          console.log(
+            "🎯 Response:",
+            response ? JSON.stringify(response, null, 2) : "No response"
+          );
+        }
+
         if (response) {
+          console.log(
+            `✅ Handler returned response for ${message.command}:`,
+            response.command
+          );
           this.sendMessage(response as any);
+        } else {
+          console.log(
+            `❌ Handler did not return a response for ${message.command}`
+          );
         }
       } else {
-        this.logger.error(`Unknown command: ${message.command}`);
+        console.log(`❌ No handler found for command: ${message.command}`);
+
+        // Special case for addCard - try to use the handler directly if command string doesn't match
+        if (message.command === "addCard" && handlers.handleAddCard) {
+          console.log("🔄 Using direct addCard handler as fallback");
+          try {
+            const response = await handlers.handleAddCard(
+              message as any,
+              handlerContext
+            );
+            if (response) {
+              console.log("✅ Direct addCard handler executed successfully");
+              this.sendMessage(response as any);
+            }
+          } catch (err) {
+            console.error("❌ Error in direct addCard handler:", err);
+          }
+        } else {
+          this.logger.error(`Unknown command: ${message.command}`);
+        }
       }
     } catch (error) {
       this.logger.error("Unexpected error in handleMessage:", error);
@@ -115,6 +193,43 @@ export class MessageHandler {
           );
         }
         break;
+      case Commands.CARD_ADDED:
+        console.log(
+          "🟢 RESPONSE: Sending cardAdded response to webview:",
+          JSON.stringify(message, null, 2)
+        );
+        const cardAddedSendTime = new Date().toISOString();
+        console.log(`🟢 RESPONSE: CARD_ADDED Timestamp ${cardAddedSendTime}`);
+        try {
+          console.log("🟢 RESPONSE: Attempting to post CARD_ADDED message");
+          this.webview.postMessage(message);
+          const cardAddedResponse = message as any;
+          console.log(
+            `🟢 RESPONSE: CARD_ADDED response sent successfully with data:`,
+            JSON.stringify(
+              {
+                success: cardAddedResponse.data?.success,
+                cardId: cardAddedResponse.data?.card?.id,
+                columnId: cardAddedResponse.data?.columnId,
+                boardId: cardAddedResponse.data?.boardId,
+              },
+              null,
+              2
+            )
+          );
+        } catch (error) {
+          console.error(
+            "🟢 CRITICAL ERROR: Failed to send cardAdded response:",
+            error
+          );
+        }
+        break;
+      case Commands.COLUMN_UPDATED:
+        console.log(
+          "🟢 RESPONSE: Sending columnUpdated response to webview:",
+          JSON.stringify(message, null, 2)
+        );
+        break;
       case Commands.COLUMN_DELETED:
         console.log(
           "🟢 RESPONSE: Sending columnDeleted response to webview:",
@@ -131,6 +246,33 @@ export class MessageHandler {
 }
 
 import * as handlers from ".";
+
+// Add a handler for executeCommand
+export async function handleExecuteCommand(
+  message: any,
+  context: HandlerContext
+): Promise<void> {
+  try {
+    const { command, args } = message.data || {};
+
+    console.log(`🎮 Executing command: ${command} with args:`, args);
+
+    if (!command) {
+      console.error("🎮 No command provided for execution");
+      return;
+    }
+
+    // Execute the command with the provided arguments
+    const result = await vscode.commands.executeCommand(
+      command,
+      ...(args || [])
+    );
+
+    console.log(`🎮 Command execution result:`, result);
+  } catch (error) {
+    console.error("🎮 Error executing command:", error);
+  }
+}
 
 const handlerMap: { [command: string]: HandlerFunction<any> } = {
   [Commands.LOG]: handlers.handleLog,
@@ -150,4 +292,5 @@ const handlerMap: { [command: string]: HandlerFunction<any> } = {
   [Commands.DELETE_COLUMN]: handlers.handleDeleteColumn,
   [Commands.OPEN_BOARD_IN_EDITOR]: handlers.handleOpenBoardInEditor,
   [Commands.SHOW_ERROR_MESSAGE]: handlers.handleShowErrorMessage,
+  executeCommand: handleExecuteCommand,
 };

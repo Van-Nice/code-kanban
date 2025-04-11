@@ -30,6 +30,7 @@
   let isMenuOpen = $state(false);
   let columnElement: HTMLElement; // Reference to the root element
   let clickHandler: (e: MouseEvent) => void;
+  let documentClickHandler: (e: MouseEvent) => void; // Handler for document clicks
 
   onMount(() => {
     // Consolidated event delegation for clicks
@@ -87,11 +88,24 @@
       }
     };
 
+    // Handle clicks outside the menu to close it
+    documentClickHandler = (e: MouseEvent) => {
+      if (isMenuOpen) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.menu-container')) {
+          isMenuOpen = false;
+        }
+      }
+    };
+
     // Attach all event listeners to columnElement
     columnElement.addEventListener('click', clickHandler);
     columnElement.addEventListener('dragover', handleDragOver);
     columnElement.addEventListener('dragleave', handleDragLeave);
     columnElement.addEventListener('drop', handleDrop);
+
+    // Add document-level click handler for menu
+    document.addEventListener('click', documentClickHandler);
   });
 
   onDestroy(() => {
@@ -102,6 +116,9 @@
       columnElement.removeEventListener('dragleave', handleDragLeave);
       columnElement.removeEventListener('drop', handleDrop);
     }
+    
+    // Clean up document click handler
+    document.removeEventListener('click', documentClickHandler);
   });
 
   function handleCardDelete(cardId: string) {
@@ -212,6 +229,23 @@
 
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
+  }
+
+  function deleteColumn() {
+    log('Delete column requested for column:', id);
+    
+    // Check if this is the last column
+    if (onDeleteColumn) {
+      const confirmDelete = confirm(`Are you sure you want to delete the column "${title}"?`);
+      if (confirmDelete) {
+        log('Delete column confirmed for column:', id);
+        onDeleteColumn(id);
+      } else {
+        log('Delete column cancelled for column:', id);
+      }
+    }
+    
+    isMenuOpen = false;
   }
 </script>
 
@@ -330,7 +364,7 @@
 
         <!-- Dropdown Menu - Conditionally rendered when menu is open -->
         {#if isMenuOpen}
-          <div class="absolute right-0 mt-1 w-48 bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-dropdown-border)] shadow-lg rounded-sm z-10">
+          <div class="menu-container absolute right-0 mt-1 w-48 bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-dropdown-border)] shadow-lg rounded-sm z-10">
             <ul>
               <!-- Edit Column Title Option -->
               <li>
@@ -349,14 +383,7 @@
                 <li>
                   <button
                     class="w-full text-left px-4 py-2 text-sm text-[var(--vscode-errorForeground)] hover:bg-[var(--vscode-list-hoverBackground)] focus:outline-none focus:bg-[var(--vscode-list-focusBackground)]"
-                    onclick={() => {
-                      log('Delete column button clicked for column:', id);
-                      // Remove confirm dialog which might be blocking the event flow
-                      log('Directly calling onDeleteColumn for column:', id);
-                      onDeleteColumn(id);
-                      log('onDeleteColumn callback called for column:', id);
-                      isMenuOpen = false;
-                    }}
+                    onclick={deleteColumn}
                   >
                     Delete column
                   </button>

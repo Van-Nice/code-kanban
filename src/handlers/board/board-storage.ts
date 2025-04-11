@@ -732,32 +732,72 @@ export class BoardStorage implements Storage {
   }
 
   public async saveCard(card: Card): Promise<void> {
-    const data = this.getData();
+    try {
+      console.log("🔍 BoardStorage.saveCard called with card:", card);
 
-    // Create/update card data
-    const cardData: CardData = {
-      id: card.id,
-      title: card.title,
-      description: card.description,
-      labels: [],
-      assignee: "",
-      columnId: card.columnId,
-      boardId: card.boardId,
-      order: 0, // Default order
-      createdAt: card.createdAt.toISOString(),
-      updatedAt: card.updatedAt.toISOString(),
-    };
+      if (!card.id || !card.columnId || !card.boardId) {
+        console.error(
+          "🔍 BoardStorage.saveCard - Invalid card data. Missing required fields:",
+          {
+            id: card.id || "MISSING",
+            columnId: card.columnId || "MISSING",
+            boardId: card.boardId || "MISSING",
+          }
+        );
+        throw new Error("Invalid card data. Missing required fields.");
+      }
 
-    data.cards.set(card.id, cardData);
+      const data = this.getData();
 
-    // Update column to include card if needed
-    const column = data.columns.get(card.columnId);
-    if (column && !column.cardIds.includes(card.id)) {
-      column.cardIds.push(card.id);
-      data.columns.set(card.columnId, column);
+      // Verify column exists
+      const column = data.columns.get(card.columnId);
+      if (!column) {
+        console.error(
+          `🔍 BoardStorage.saveCard - Column ${card.columnId} not found`
+        );
+        throw new Error(`Column ${card.columnId} not found`);
+      }
+
+      // Verify board exists
+      const board = data.boards.get(card.boardId);
+      if (!board) {
+        console.error(
+          `🔍 BoardStorage.saveCard - Board ${card.boardId} not found`
+        );
+        throw new Error(`Board ${card.boardId} not found`);
+      }
+
+      // Create/update card data
+      const cardData: CardData = {
+        id: card.id,
+        title: card.title,
+        description: card.description,
+        labels: card.labels || [],
+        assignee: card.assignee || "",
+        columnId: card.columnId,
+        boardId: card.boardId,
+        order: card.order || 0,
+        createdAt: card.createdAt.toISOString(),
+        updatedAt: card.updatedAt.toISOString(),
+      };
+
+      data.cards.set(card.id, cardData);
+
+      // Update column to include card if needed
+      if (column && !column.cardIds.includes(card.id)) {
+        column.cardIds.push(card.id);
+        data.columns.set(card.columnId, column);
+      }
+
+      await this.saveData(data);
+      console.log(
+        "🔍 BoardStorage.saveCard - Successfully saved card:",
+        card.id
+      );
+    } catch (error) {
+      console.error("🔍 BoardStorage.saveCard - Error saving card:", error);
+      throw error;
     }
-
-    await this.saveData(data);
   }
 
   public async getCard(id: string): Promise<Card | null> {

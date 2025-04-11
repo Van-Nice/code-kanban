@@ -130,3 +130,32 @@ export interface OpenBoardInEditorResponse extends ResponseMessageBase {
     error?: string;
   };
 }
+
+/**
+ * Message sent when adding a card
+ */
+export interface AddCardMessage extends WebviewMessageBase {
+  command: typeof Commands.ADD_CARD;
+  data: {
+    boardId: string;
+    columnId: string;
+    title: string;
+    description?: string;
+    labels?: string[];
+    assignee?: string;
+  };
+}
+
+/**
+ * Response when a card is added
+ */
+export interface CardAddedResponse extends ResponseMessageBase {
+  command: typeof Commands.CARD_ADDED;
+  data: {
+    success: boolean;
+    boardId: string;
+    columnId: string;
+    card?: Card;
+    error?: string;
+  };
+}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { sendMessage } from '../utils/vscodeMessaging';
   import { getWebviewContext } from '../utils/vscodeMessaging';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { log, error } from '../utils/vscodeMessaging';
   import type { Card as CardType } from './types';
   import { Commands } from '../shared/commands';
@@ -39,6 +39,10 @@
   let cardTitleInput = $state<HTMLInputElement | null>(null);
   let isSaving = $state(false);
   let saveError = $state<string | null>(null);
+  
+  // Track active timers for cleanup
+  let saveTimeout: number | undefined = undefined;
+  let finalTimeout: number | undefined = undefined;
 
   function startEditing() {
     isEditing = true;
@@ -56,8 +60,32 @@
       }
     });
   });
+  
+  onDestroy(() => {
+    // Clean up any active timers
+    cleanupSaveOperations();
+  });
+  
+  function cleanupSaveOperations() {
+    // Clear timeouts if active
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = undefined;
+    }
+    
+    if (finalTimeout) {
+      clearTimeout(finalTimeout);
+      finalTimeout = undefined;
+    }
+  }
 
   function saveChanges() {
+    // Prevent multiple saves while one is in progress
+    if (isSaving) {
+      log('Save already in progress, ignoring duplicate save request');
+      return;
+    }
+    
     log('saveChanges function called');
     
     if (!editedTitle.trim()) {
@@ -69,6 +97,9 @@
     // Reset error state and set saving state
     saveError = null;
     isSaving = true;
+
+    // Clean up any existing timers
+    cleanupSaveOperations();
 
     // Log edited values for debugging
     log('Card being saved with values:', { 
@@ -104,71 +135,29 @@
         }
       });
       
-      // Register a one-time listener for this specific card update
-      const specificCardId = id;
-      const responseHandler = (event: MessageEvent<any>) => {
-        const msg = event.data;
-        log(`🔵 LISTENER: Received message in Card listener: ${msg.command}`);
-        
-        // For any cardUpdated message, log it for debugging
-        if (msg.command === Commands.CARD_UPDATED) {
-          log(`🔵 LISTENER: Card update response received`);
-          log(`🔵 LISTENER: Response for card ID: ${msg.data?.card?.id}`);
-          log(`🔵 LISTENER: Expected card ID: ${specificCardId}`);
-          log(`🔵 LISTENER: Success: ${msg.data?.success}`);
-          log(`🔵 LISTENER: Error: ${msg.data?.error || 'None'}`);
-        }
-        
-        // Check if this response is for our specific card
-        if (msg.command === Commands.CARD_UPDATED && 
-            msg.data?.card?.id === specificCardId) {
-          log('🔵 LISTENER: Found matching response for our card!');
-          
-          // Clear timeout
-          clearTimeout(saveTimeout);
-          
-          // Handle success/failure
-          if (msg.data.success) {
-            log('Card update confirmed by server', msg.data.card);
-            isSaving = false;
-            isEditing = false;
-            onUpdateCard(msg.data.card);
-          } else if (msg.data.error) {
-            log('Card update failed', msg.data.error);
-            saveError = msg.data.error;
-            isSaving = false;
-          }
-          
-          // Always remove the event listener
-          window.removeEventListener('message', responseHandler);
-          log('🔵 LISTENER: Removed event listener after processing response');
-        }
-      };
-      
-      // Add the message listener
-      window.addEventListener('message', responseHandler);
-      log('🔵 LISTENER: Added event listener for card updates');
+      // Instead of using a dynamic listener, we'll rely on the parent component
+      // to handle the card update via the standard message flow, and we'll use
+      // timers to handle timeouts.
       
       // Set up a timeout to detect if the update is taking too long
-      const saveTimeout = setTimeout(() => {
+      saveTimeout = window.setTimeout(() => {
         if (isSaving) {
           // Still saving after timeout - might be an issue with the server
           log('Card save is taking longer than expected');
-          log('🔵 LISTENER: First timeout reached (3s) - still waiting for response');
+          log('First timeout reached (3s) - still waiting for response');
         }
       }, 3000);
         
       // Fallback - if after 10 seconds we haven't gotten a response, assume failure
-      setTimeout(() => {
+      finalTimeout = window.setTimeout(() => {
         if (isSaving) {
           log('No update response received after timeout, manual check required');
-          log('🔵 LISTENER: Final timeout reached (10s) - no response received');
+          log('Final timeout reached (10s) - no response received');
           saveError = 'Update timed out. Please check if your changes were saved.';
           isSaving = false;
-          window.removeEventListener('message', responseHandler);
-          log('🔵 LISTENER: Removed event listener after timeout');
         }
       }, 10000);
+      
     } catch (err) {
       isSaving = false;
       saveError = 'Failed to save card changes: ' + (err instanceof Error ? err.message : 'Unknown error');
@@ -179,6 +168,14 @@
         data: { message: 'Failed to save card changes. Please try again.' }
       });
     }
+  }
+  
+  function handleSaveSuccess(updatedCard: CardType) {
+    log('Card update confirmed by server', updatedCard);
+    cleanupSaveOperations();
+    isSaving = false;
+    isEditing = false;
+    onUpdateCard(updatedCard);
   }
 
   function cancelEditing() {
@@ -405,8 +402,10 @@
             onclick={(e: MouseEvent) => {
               e.preventDefault();
               e.stopPropagation();
-              log('Save button clicked, current title:', editedTitle);
-              saveChanges();
+              if (!isSaving) {
+                log('Save button clicked, current title:', editedTitle);
+                saveChanges();
+              }
             }}
             class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
             disabled={isSaving}

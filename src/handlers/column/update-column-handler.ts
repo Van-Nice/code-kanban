@@ -1,4 +1,7 @@
-import { UpdateColumnMessage, ColumnResponse } from "../messages";
+import {
+  UpdateColumnMessage,
+  ColumnResponse,
+} from "../../shared/message-types";
 import { HandlerContext } from "../message-handler";
 import { sanitizeString } from "../utils";
 import { Board as HandlerBoard, Column as HandlerColumn } from "../board/board";

@@ -15,3 +15,4 @@ export { handleUpdateColumn } from "./column/update-column-handler";
 export { handleDeleteColumn } from "./column/delete-column-handler";
 export { handleOpenBoardInEditor } from "./board/open-board-in-editor-handler";
 export { handleShowErrorMessage } from "./show-error-message-handler";
+export { handleExecuteCommand } from "./message-handler";

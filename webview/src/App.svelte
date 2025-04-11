@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Board from './kanban/Board.svelte';
 	import BoardList from './kanban/BoardList.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from './utils/vscodeMessaging';
 	import { Commands } from './shared/commands';
   
@@ -9,6 +9,7 @@
     let messageHandler: (message: any) => void;
     let webviewContext: string;
     let theme = $state<string>('dark'); // Default theme
+    let themeObserver: MutationObserver | null = null;
   
 	onMount(() => {
 	  // Initialize VSCode API
@@ -48,7 +49,7 @@
 	  }
 	  
 	  // Listen for theme changes
-	  const observer = new MutationObserver((mutations) => {
+	  themeObserver = new MutationObserver((mutations) => {
 		mutations.forEach((mutation) => {
 		  if (mutation.attributeName === 'class') {
 			const body = document.body;
@@ -63,11 +64,23 @@
 		});
 	  });
 	  
-	  observer.observe(document.body, { attributes: true });
+	  themeObserver.observe(document.body, { attributes: true });
+	});
+	
+	// Clean up all event listeners and observers
+	onDestroy(() => {
+	  // Clean up message listener
+	  if (messageHandler) {
+	    log('App: cleaning up message listener');
+	    removeMessageListener(messageHandler);
+	  }
 	  
-	  return () => {
-		observer.disconnect();
-	  };
+	  // Clean up theme observer
+	  if (themeObserver) {
+	    log('App: disconnecting theme observer');
+	    themeObserver.disconnect();
+	    themeObserver = null;
+	  }
 	});
   
 	function handleExtensionMessage(message: any) {
@@ -81,13 +94,7 @@
 		  // Handle board loaded message
 		  if (message.data && message.data.success) {
 			log('Board loaded successfully', message.data);
-			// Forward the message to the Board component if we have a current board
-			if (currentBoardId) {
-			  sendMessage({
-				command: message.command,
-				data: message.data
-			  });
-			}
+			// No need to forward this message - it's already coming from the extension
 		  } else {
 			error('Failed to load board', message.data);
 		  }
@@ -95,17 +102,29 @@
 		case Commands.COLUMN_ADDED:
 		case Commands.COLUMN_UPDATED:
 		case Commands.COLUMN_DELETED:
+		  log(`App received ${message.command} message - no need to forward to Board component`, message.data);
+		  break;
 		case Commands.CARD_ADDED:
+		case "cardAdded":
+		  // Special handling for CARD_ADDED with extra logging
+		  log(`App received ${message.command} message - no need to forward to Board component`, message.data);
+		  // Log details of the card data
+		  if (message.data && message.data.card) {
+		    log(`Card information details:`, {
+		      cardId: message.data.card.id,
+		      title: message.data.card.title,
+		      columnId: message.data.card.columnId || message.data.columnId
+		    });
+		  }
+		  
+		  // No need to re-forward messages - the Board component has its own listener
+		  // that will pick up extension messages directly
+		  break;
 		case Commands.CARD_UPDATED:
 		case Commands.CARD_DELETED:
 		case Commands.CARD_MOVED:
 		  // These messages are handled by the Board component
-		  if (currentBoardId) {
-			sendMessage({
-			  command: message.command,
-			  data: message.data
-			});
-		  }
+		  // DO NOT forward these messages - they're already coming from the extension
 		  break;
 		case 'themeChanged':
 		  theme = message.data.theme;
@@ -118,17 +137,6 @@
 		case Commands.LOG:
 		case Commands.ERROR:
 		  // Ignore log and error messages
-		  break;
-		case Commands.COLUMN_DELETED:
-		  // These messages are handled by the Board component
-		  if (currentBoardId) {
-			log('App.svelte: Forwarding COLUMN_DELETED message to Board component', message);
-			sendMessage({
-			  command: message.command,
-			  data: message.data
-			});
-			log('App.svelte: COLUMN_DELETED message forwarded to Board component');
-		  }
 		  break;
 		default:
 		  // Only log unknown messages that aren't handled by child components

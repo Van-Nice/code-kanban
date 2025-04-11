@@ -1,6 +1,7 @@
-import { AddCardMessage, CardAddedResponse } from "../messages";
+import { AddCardMessage, CardAddedResponse } from "../../shared/message-types";
 import { HandlerContext } from "../message-handler";
 import { v4 as uuidv4 } from "uuid";
+import { Commands } from "../../shared/commands";
 
 export async function handleAddCard(
   message: AddCardMessage,
@@ -15,7 +16,7 @@ export async function handleAddCard(
   ) {
     logger.error("Missing required fields for card addition");
     return {
-      command: "cardAdded",
+      command: Commands.CARD_ADDED,
       data: {
         success: false,
         error: "Missing required fields: boardId, columnId, or title",
@@ -32,7 +33,7 @@ export async function handleAddCard(
     if (!board) {
       logger.error(`Board with ID ${message.data.boardId} not found`);
       return {
-        command: "cardAdded",
+        command: Commands.CARD_ADDED,
         data: {
           success: false,
           error: `Board with ID ${message.data.boardId} not found`,
@@ -60,7 +61,7 @@ export async function handleAddCard(
 
     logger.debug(`Card with ID ${newCard.id} added successfully`);
     return {
-      command: "cardAdded",
+      command: Commands.CARD_ADDED,
       data: {
         success: true,
         boardId: message.data.boardId,
@@ -71,7 +72,7 @@ export async function handleAddCard(
   } catch (error) {
     logger.error("Error adding card:", error);
     return {
-      command: "cardAdded",
+      command: Commands.CARD_ADDED,
       data: {
         success: false,
         error: `Failed to add card: ${

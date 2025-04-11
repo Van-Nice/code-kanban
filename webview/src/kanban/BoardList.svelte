@@ -1,6 +1,6 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from '../utils/vscodeMessaging';
   import type { Board } from './types'; 
   import { Commands } from '../shared/commands';
@@ -44,6 +44,14 @@
       command: Commands.GET_BOARDS,
       data: {}
     });
+  });
+  
+  onDestroy(() => {
+    // Clean up message listener when component is destroyed
+    if (messageHandler) {
+      log('BoardList: cleaning up message listener');
+      removeMessageListener(messageHandler);
+    }
   });
 
   function handleExtensionMessage(message: any) {
@@ -91,6 +99,22 @@
 
   function deleteBoard(boardId: string, event: MouseEvent | KeyboardEvent) {
     event.stopPropagation();
+    
+    // Find the board title for the confirmation dialog
+    const board = boards.find(b => b.id === boardId);
+    if (!board) {
+      error('Board not found for deletion', { boardId });
+      return;
+    }
+    
+    // Show confirmation dialog
+    const confirmDelete = confirm(`Are you sure you want to delete the board "${board.title}"?`);
+    if (!confirmDelete) {
+      log('Board deletion cancelled', { boardId });
+      return;
+    }
+    
+    log('Board deletion confirmed', { boardId });
     
     // Send message to extension
     sendMessage({

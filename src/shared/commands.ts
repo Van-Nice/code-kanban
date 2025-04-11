@@ -21,7 +21,7 @@ export const Commands = {
   DELETE_COLUMN: "deleteColumn",
 
   // Card commands
-  ADD_CARD: "addCard",
+  ADD_CARD: "createCardCommand",
   UPDATE_CARD: "updateCard",
   DELETE_CARD: "deleteCard",
   MOVE_CARD: "moveCard",

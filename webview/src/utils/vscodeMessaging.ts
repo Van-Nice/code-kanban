@@ -71,48 +71,57 @@ export function getWebviewContext(): string {
 export function sendMessage(message: VSCodeMessage) {
   console.log("Sending message to extension:", message);
 
-  // Special handling for updateCard - critical persistence operation
+  // Special handling for updateCard operations only - addCard now uses standard path
   if (message.command === Commands.UPDATE_CARD) {
+    const operation =
+      message.command === Commands.UPDATE_CARD ? "updateCard" : "addCard";
     console.log(
-      "🔴 DIRECT SEND: updateCard message data:",
+      `🔴 DIRECT SEND: ${operation} message data:`,
       JSON.stringify(message.data, null, 2)
     );
 
-    // Use direct approach for updateCard instead of retry mechanism
+    // Use direct approach for these critical operations instead of retry mechanism
     // Initialize vscodeApi if needed
     if (!vscodeApi) {
       console.log(
-        "🔴 DIRECT SEND: vscodeApi not initialized, initializing now for updateCard"
+        `🔴 DIRECT SEND: vscodeApi not initialized, initializing now for ${operation}`
       );
       vscodeApi = initializeVSCodeApi();
     }
 
     if (!vscodeApi) {
       console.error(
-        "🔴 CRITICAL ERROR: Cannot send updateCard - vscodeApi unavailable"
+        `🔴 CRITICAL ERROR: Cannot send ${operation} - vscodeApi unavailable`
       );
       return;
     }
 
     try {
-      console.log("🔴 DIRECT SEND: Sending updateCard message to extension");
+      console.log(`🔴 DIRECT SEND: Sending ${operation} message to extension`);
       // Add a timestamp to track when the message was sent
       const sendTime = new Date().toISOString();
       console.log(`🔴 DIRECT SEND: Timestamp ${sendTime}`);
 
       // Send the message
       vscodeApi.postMessage(message);
-      console.log("🔴 DIRECT SEND: updateCard message sent successfully");
+      console.log(`🔴 DIRECT SEND: ${operation} message sent successfully`);
 
       // Log the message details again after sending
-      console.log("🔴 DIRECT SEND: Message sent with card details:");
-      console.log(`- Card ID: ${message.data?.card?.id}`);
-      console.log(`- Card Title: "${message.data?.card?.title}"`);
-      console.log(`- Column ID: ${message.data?.columnId}`);
-      console.log(`- Board ID: ${message.data?.boardId}`);
+      console.log(`🔴 DIRECT SEND: Message sent with details:`);
+
+      if (operation === "addCard") {
+        console.log(`- Board ID: ${message.data?.boardId}`);
+        console.log(`- Column ID: ${message.data?.columnId}`);
+        console.log(`- Card Title: "${message.data?.title}"`);
+      } else {
+        console.log(`- Card ID: ${message.data?.card?.id}`);
+        console.log(`- Card Title: "${message.data?.card?.title}"`);
+        console.log(`- Column ID: ${message.data?.columnId}`);
+        console.log(`- Board ID: ${message.data?.boardId}`);
+      }
     } catch (error) {
       console.error(
-        "🔴 CRITICAL ERROR: Failed to send updateCard message:",
+        `🔴 CRITICAL ERROR: Failed to send ${operation} message:`,
         error
       );
     }
@@ -140,11 +149,34 @@ export function sendMessage(message: VSCodeMessage) {
     return;
   }
 
+  // Add specific logging for addCard before the try block
+  if (message.command === Commands.ADD_CARD) {
+    console.log(
+      `*** PRE-SEND CHECK (addCard): vscodeApi type = ${typeof vscodeApi}, postMessage type = ${typeof vscodeApi?.postMessage}`
+    );
+  }
+
   try {
     console.log(
       `Attempting to call postMessage with command: ${message.command}...`
     );
+
+    // Add specific logging immediately before the call for addCard
+    if (message.command === Commands.ADD_CARD) {
+      console.log(
+        `*** ABOUT TO POST (addCard): Message = ${JSON.stringify(message)}`
+      );
+    }
+
     vscodeApi.postMessage(message);
+
+    // Add specific logging immediately after the call for addCard
+    if (message.command === Commands.ADD_CARD) {
+      console.log(
+        `*** POST MESSAGE CALLED (addCard): No immediate error thrown.`
+      );
+    }
+
     console.log(`Message with command '${message.command}' sent successfully`);
   } catch (error) {
     console.error(
@@ -173,7 +205,14 @@ export function setupMessageListener(
   const eventHandler = (event: MessageEvent) => {
     console.log("Message received from extension:", event.data);
     const message = event.data as VSCodeMessage;
-    callback(message);
+
+    // Only process messages with a valid command
+    if (message && message.command) {
+      console.log(`Processing message with command: ${message.command}`);
+      callback(message);
+    } else {
+      console.log("Ignoring invalid message without command:", message);
+    }
   };
 
   // Store reference to the handler
