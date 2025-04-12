@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { MessageHandler } from "./handlers/message-handler";
+import { Commands } from "./shared/commands";
 
 // Using context for extension-wide data, not global messageHandler
 let extensionContext: vscode.ExtensionContext;
@@ -9,6 +10,9 @@ let extensionContext: vscode.ExtensionContext;
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
   extensionContext = context;
+
+  // Variable to store sidebar state (e.g., current board ID)
+  let sidebarState: { boardId: string | null } = { boardId: null };
 
   // Set up webview
   extensionContext.subscriptions.push(
@@ -41,110 +45,121 @@ export function activate(context: vscode.ExtensionContext) {
           "sidebar"
         );
 
+        webviewView.onDidChangeVisibility(() => {
+          if (!webviewView.visible) {
+            // Request state from webview when it becomes hidden - REMOVED as it's ineffective
+            // console.log("Sidebar hidden, requesting state...");
+            // webviewView.webview.postMessage({ command: "getState" });
+          } else {
+            // Restore state when it becomes visible if we have saved state
+            console.log("Sidebar visible, restoring state:", sidebarState);
+            // Use a slight delay to ensure the webview is ready to receive messages after being recreated
+            setTimeout(() => {
+              if (webviewView.visible && sidebarState) {
+                // Check visibility again in case it changed quickly
+                webviewView.webview.postMessage({
+                  command: "setState",
+                  data: sidebarState, // Send { boardId: string | null }
+                });
+              }
+            }, 100); // 100ms delay, adjust if needed
+          }
+        });
+
         // Set up message listener
         webviewView.webview.onDidReceiveMessage(
           async (message) => {
-            // Debug logging for ALL incoming messages
-            console.log(
-              `>>> SIDEBAR LISTENER: Received raw message:`,
-              JSON.stringify(message, null, 2)
-            );
-            console.log(`Sidebar received message: ${message.command}`);
-
-            // Handle executeCommand messages
-            if (message.command === "executeCommand" && message.commandId) {
+            // Reference to the webview for sending back messages
+            const webview = webviewView.webview;
+            // Local function to handle message processing and state saving
+            const processMessage = async (msg: any) => {
+              // Debug logging for ALL incoming messages
               console.log(
-                `🔍 SIDEBAR: Executing command ${message.commandId} with args:`,
-                message.args
+                `>>> SIDEBAR LISTENER: Received raw message:`,
+                JSON.stringify(msg, null, 2)
               );
+              console.log(`Sidebar received message: ${msg.command}`);
 
-              try {
-                // Execute the command directly
-                await vscode.commands.executeCommand(
-                  message.commandId,
-                  ...message.args
-                );
+              // Handle state persistence messages FIRST
+              if (msg.command === "getStateResponse") {
+                // This case might be obsolete now, but keep for safety/debugging
                 console.log(
-                  `🔍 SIDEBAR: Successfully executed command ${message.commandId}`
+                  "Extension received sidebar state (getStateResponse):",
+                  msg.data
                 );
+                if (msg.data && typeof msg.data.boardId !== "undefined") {
+                  sidebarState = msg.data;
+                }
+                return;
+              }
+
+              if (msg.command === "requestInitialState") {
+                console.log(
+                  "Webview requested initial state. Sending:",
+                  sidebarState
+                );
+                // Send state immediately on request
+                webview.postMessage({
+                  command: "setState",
+                  data: sidebarState,
+                });
+                return;
+              }
+
+              // Original message handling logic using messageHandler
+              try {
+                // Determine if the handler will potentially load a board
+                const isBoardLoadCommand = msg.command === Commands.GET_BOARD;
+                let boardIdBeforeHandling = sidebarState?.boardId; // Store current state
+
+                // Process the message using the existing handler
+                await messageHandler.handleMessage(msg);
+
+                // --- Proactive State Saving ---
+                // After handling, check if the state needs updating based on the command
+                if (msg.command === Commands.GET_BOARD && msg.data?.boardId) {
+                  // If GET_BOARD was processed, assume success for now means we update state
+                  // A more robust way would be to check the response from handleMessage if it indicated success
+                  const newBoardId = msg.data.boardId;
+                  if (sidebarState?.boardId !== newBoardId) {
+                    console.log(
+                      `SIDEBAR: Proactively saving board state: ${newBoardId}`
+                    );
+                    sidebarState = { boardId: newBoardId };
+                  }
+                } else if (msg.command === "handleBackToBoards") {
+                  // Example: If webview signals going back to list
+                  if (sidebarState?.boardId !== null) {
+                    console.log(
+                      `SIDEBAR: Proactively clearing board state (back to list)`
+                    );
+                    sidebarState = { boardId: null };
+                  }
+                }
+                // Add more else if conditions here for other commands that change the current board
+                // e.g., if a board is deleted, set sidebarState.boardId = null
+                // -------------------------------
               } catch (error) {
                 console.error(
-                  `🔍 SIDEBAR: Error executing command ${message.commandId}:`,
+                  `SIDEBAR: Error handling message ${msg.command}:`,
                   error
                 );
               }
-              return;
-            }
+            };
 
-            // Special case for addCardDirect command - bypass regular handling
-            if (message.command === "addCardDirect") {
-              console.log("🔴 DIRECT CARD CREATION REQUEST RECEIVED");
-              console.log(
-                "🔴 Card data:",
-                JSON.stringify(message.data, null, 2)
-              );
-
-              try {
-                // Create a modified message that matches what handleAddCard expects
-                const addCardMessage = {
-                  command: "addCard",
-                  data: message.data,
-                };
-
-                console.log(
-                  "🔴 Converting to standard addCard message:",
-                  JSON.stringify(addCardMessage, null, 2)
-                );
-
-                // Process with the message handler
-                await messageHandler.handleMessage(addCardMessage);
-                console.log("🔴 Direct card creation processed successfully");
-              } catch (error) {
-                console.error("🔴 Error in direct card creation:", error);
-              }
-              return;
-            }
-
-            if (
-              message.command === "updateCard" ||
-              message.command === "addCard"
-            ) {
-              console.log(
-                `⭐⭐⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE RECEIVED IN SIDEBAR - Details:`,
-                JSON.stringify(message.data, null, 2)
-              );
-
-              // Extra logging for card messages
-              console.log(
-                `⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE - Card Properties:`
-              );
-              if (message.command === "updateCard") {
-                console.log(`- Card ID: ${message.data?.card?.id}`);
-                console.log(`- Card Title: "${message.data?.card?.title}"`);
-              } else {
-                console.log(`- Title: "${message.data?.title}"`);
-              }
-              console.log(`- Column ID: ${message.data?.columnId}`);
-              console.log(`- Board ID: ${message.data?.boardId}`);
-
-              try {
-                await messageHandler.handleMessage(message);
-                console.log(
-                  `⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE - Handler completed successfully`
-                );
-              } catch (error) {
-                console.error(
-                  `⭐ CRITICAL ${message.command.toUpperCase()} MESSAGE - Handler failed with error:`,
-                  error
-                );
-              }
-            } else {
-              await messageHandler.handleMessage(message);
-            }
+            // Call the processing function
+            await processMessage(message);
           },
           undefined,
           extensionContext.subscriptions
         );
+
+        // Add a listener for disposal (optional but good for debugging)
+        webviewView.onDidDispose(() => {
+          console.log("Sidebar webview disposed");
+          // Clear state or perform other cleanup if necessary
+          // sidebarState = { boardId: null }; // Might reset state unintentionally if just hidden
+        });
 
         // Set the HTML content with js and css embedded for the webview view
         webviewView.webview.html = `

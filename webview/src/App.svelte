@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Board from './kanban/Board.svelte';
 	import BoardList from './kanban/BoardList.svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { initializeVSCodeApi, sendMessage, setupMessageListener, removeMessageListener, getWebviewContext, log, error } from './utils/vscodeMessaging';
 	import { Commands } from './shared/commands';
 	import type { Board as SharedBoard } from './shared/types';
@@ -28,6 +28,12 @@
 	  log('App.svelte onMount: About to call setupMessageListener...');
 	  setupMessageListener(messageHandler);
 	  log('App.svelte onMount: setupMessageListener called.');
+  
+	  // Request initial state if in sidebar
+	  if (webviewContext === 'sidebar') {
+		log('Sidebar context detected, requesting initial state...');
+		sendMessage({ command: 'requestInitialState' });
+	  }
   
 	  // Check if we have a board ID in the URL
 	  const urlParams = new URLSearchParams(window.location.search);
@@ -89,7 +95,8 @@
 	  }
 	});
   
-	function handleExtensionMessage(message: any) {
+	// Make the handler async to allow await tick()
+	async function handleExtensionMessage(message: any) {
 	  if (!message || !message.command) {
 		log('Received invalid message', message);
 		return;
@@ -117,7 +124,26 @@
 		  // These messages are handled by the Board component
 		  // DO NOT forward these messages - they're already coming from the extension
 		  break;
+		case 'setState':
+			// Read state from data object
+			if (message.data && typeof message.data.boardId !== 'undefined') { // Check type explicitly
+				const restoredBoardId = message.data.boardId;
+				log('Extension sent state. Setting currentBoardId:', restoredBoardId);
+				// Only update if the board ID has actually changed
+				if (currentBoardId !== restoredBoardId) {
+					currentBoardId = restoredBoardId;
+					currentBoardData = null; // Reset data as we are loading a potentially new board or going to list
+					if (currentBoardId) {
+						// Trigger loading the board data if a valid boardId is set
+						sendMessage({ command: Commands.GET_BOARD, data: { boardId: currentBoardId } });
+					} 
+				}
+			} else {
+				log('Received setState message with invalid/missing state data:', message.data);
+			}
+			break;
 		case 'themeChanged':
+		  // Read theme from data object
 		  theme = message.data.theme;
 		  break;
 		case Commands.BOARDS_LOADED:
@@ -144,6 +170,10 @@
 			  
 			  currentBoardData = { ...currentBoardData, columns: updatedColumns };
 			  log('App board state updated after COLUMN_ADDED', JSON.stringify(currentBoardData));
+
+			  // Ensure UI update after programmatic state change
+			  await tick();
+
 			} else {
 			  log('COLUMN_ADDED message received for a different board, ignoring.', { currentBoard: currentBoardData.id, messageBoard: boardId });
 			}
@@ -193,6 +223,9 @@
 	  currentBoardId = null;
 	  currentBoardData = null; // Clear board data when going back
 
+	  // Send message to extension to clear its state
+	  sendMessage({ command: 'handleBackToBoards' });
+
 	  // Update URL without reloading the page
 	  const url = new URL(window.location.href);
 	  url.searchParams.delete('boardId');
@@ -215,11 +248,13 @@
 			<span>Back to Boards</span>
 		  </button>
 		</div>
-		{#if currentBoardData}
-		  <Board board={currentBoardData} />
-		{:else}
-		  <p>Loading board data...</p>
-		{/if}
+		{#key currentBoardId}
+			{#if currentBoardData}
+			<Board board={currentBoardData} />
+			{:else}
+			<p>Loading board data for {currentBoardId}...</p>
+			{/if}
+		{/key}
 	  </div>
 	{:else}
 	  <BoardList onBoardSelect={handleBoardSelect} />
