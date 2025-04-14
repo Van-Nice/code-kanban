@@ -35,22 +35,6 @@
 		sendMessage({ command: 'requestInitialState' });
 	  }
   
-	  // Check if we have a board ID in the URL
-	  const urlParams = new URLSearchParams(window.location.search);
-	  const boardId = urlParams.get('boardId');
-	  if (boardId) {
-		currentBoardId = boardId;
-		log('Loaded board from URL', { boardId });
-	  }
-	  
-	  // Check if we have a board ID in the window object (for editor view)
-	  // @ts-ignore - window.boardId is injected by the extension
-	  if (window.boardId) {
-		// @ts-ignore
-		currentBoardId = window.boardId;
-		log('Loaded board from window object', { boardId: currentBoardId });
-	  }
-	  
 	  // Detect theme from VSCode
 	  const body = document.body;
 	  if (body.classList.contains('vscode-light')) {
@@ -107,6 +91,7 @@
 		  if (message.data && message.data.success && message.data.board) {
 			log('App received BOARD_LOADED, updating state', message.data.board);
 			currentBoardData = message.data.board;
+			currentBoardId = message.data.board.id;
 		  } else {
 			error('Failed to load board', message.data);
 			currentBoardData = null;
@@ -169,7 +154,7 @@
 			  updatedColumns.sort((a, b) => a.order - b.order);
 			  
 			  currentBoardData = { ...currentBoardData, columns: updatedColumns };
-			  log('App board state updated after COLUMN_ADDED', JSON.stringify(currentBoardData));
+			  log('App board state updated after COLUMN_ADDED');
 
 			  // Ensure UI update after programmatic state change
 			  await tick();

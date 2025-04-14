@@ -1,6 +1,6 @@
 import { Board, Column, Card } from "../models/board";
 import { Commands, CommandType } from "../shared/commands";
-import type { Column as SharedColumn } from "../../shared/types";
+import type { Column as SharedColumn } from "../shared/types";
 
 export interface WebviewMessageBase {
   command: CommandType | string;

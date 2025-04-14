@@ -2,14 +2,18 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { MessageHandler } from "./handlers/message-handler";
 import { Commands } from "./shared/commands";
+import { BoardStorage } from "./handlers/board/board-storage";
+import { convertToApiBoard } from "./models/adapters"; // May need adapters
 
 // Using context for extension-wide data, not global messageHandler
 let extensionContext: vscode.ExtensionContext;
+let boardStorage: BoardStorage;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
   extensionContext = context;
+  boardStorage = new BoardStorage(context);
 
   // Variable to store sidebar state (e.g., current board ID)
   let sidebarState: { boardId: string | null } = { boardId: null };
@@ -42,6 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
         const messageHandler = new MessageHandler(
           webviewView.webview,
           extensionContext,
+          boardStorage,
           "sidebar"
         );
 
@@ -210,6 +215,7 @@ export function activate(context: vscode.ExtensionContext) {
       const messageHandler = new MessageHandler(
         panel.webview,
         extensionContext,
+        boardStorage,
         "editor"
       );
 
@@ -297,10 +303,10 @@ export function activate(context: vscode.ExtensionContext) {
   // Register command to open a specific board in the editor
   const openBoardInEditorDisposable = vscode.commands.registerCommand(
     "boogie.openBoardInEditor",
-    (boardId: string) => {
+    async (boardId: string) => {
       // Create a new webview panel
       const panel = vscode.window.createWebviewPanel(
-        "kanbanBoard",
+        `kanbanBoard-${boardId}`,
         "Kanban Board",
         vscode.ViewColumn.One,
         {
@@ -316,18 +322,20 @@ export function activate(context: vscode.ExtensionContext) {
       const messageHandler = new MessageHandler(
         panel.webview,
         extensionContext,
+        boardStorage,
         "editor"
       );
 
       // Set up message listener
       panel.webview.onDidReceiveMessage(
         async (message) => {
-          // Debug logging for ALL incoming messages
           console.log(
-            `>>> BOARD EDITOR LISTENER: Received raw message:`,
+            `>>> BOARD EDITOR LISTENER (${boardId}): Received raw message:`,
             JSON.stringify(message, null, 2)
           );
-          console.log(`Board editor received message: ${message.command}`);
+          console.log(
+            `Board editor (${boardId}) received message: ${message.command}`
+          );
 
           // Handle executeCommand messages
           if (message.command === "executeCommand" && message.commandId) {
@@ -378,7 +386,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
       const webviewCssUri = panel.webview.asWebviewUri(webviewCssPath);
 
-      // Set the HTML content with boardId in the URL
+      // Set the HTML content WITHOUT injecting window.boardId
       panel.webview.html = `
         <!DOCTYPE html>
         <html lang="en">
@@ -391,13 +399,67 @@ export function activate(context: vscode.ExtensionContext) {
         <body>
           <div id="app"></div>
           <script>
-            window.boardId = "${boardId}";
             window.webviewContext = "editor";
           </script>
           <script src="${webviewJsUri}"></script>
         </body>
         </html>
       `;
+
+      // --- NEW LOGIC: Fetch data and send it to the webview ---
+      try {
+        console.log(
+          `[Extension] Fetching board data for editor panel: ${boardId}`
+        );
+        // Fetch the raw board data using the shared storage instance
+        const boardData = await boardStorage.getBoard(boardId);
+
+        if (boardData) {
+          console.log(
+            `[Extension] Board data fetched for ${boardId}. Sending BOARD_LOADED.`
+          );
+          // Update panel title
+          panel.title = boardData.title || "Kanban Board";
+
+          // You might need to adapt the data structure if the webview App/Board component
+          // expects the API model (`Board`) instead of the storage model (`SharedBoard`).
+          // Let's assume for now App.svelte can handle the SharedBoard structure from storage.
+          // If not, use adapters: const apiBoard = convertToApiBoard(boardData);
+
+          // Send the data to the webview
+          panel.webview.postMessage({
+            command: Commands.BOARD_LOADED,
+            data: {
+              success: true,
+              // Use the raw boardData or the converted apiBoard depending on webview needs
+              board: boardData,
+            },
+          });
+        } else {
+          console.error(`[Extension] Board not found for ID: ${boardId}`);
+          panel.title = "Board Not Found";
+          panel.webview.postMessage({
+            command: Commands.BOARD_LOADED,
+            data: {
+              success: false,
+              error: `Board with ID ${boardId} not found.`,
+            },
+          });
+        }
+      } catch (err) {
+        console.error(`[Extension] Error fetching board ${boardId}:`, err);
+        panel.title = "Error Loading Board";
+        panel.webview.postMessage({
+          command: Commands.BOARD_LOADED,
+          data: {
+            success: false,
+            error: `Error loading board: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          },
+        });
+      }
+      // --- End of NEW LOGIC ---
     }
   );
 
@@ -425,7 +487,6 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         // Create the storage directly
-        const { BoardStorage } = require("./handlers/board/board-storage");
         const { v4: uuidv4 } = require("uuid");
         const storage = new BoardStorage(context);
 

@@ -52,17 +52,18 @@ export class MessageHandler {
   constructor(
     webview: vscode.Webview,
     context: vscode.ExtensionContext,
+    storage: BoardStorage,
     webviewContext: string = "sidebar"
   ) {
     this.webview = webview;
     this.context = context;
+    this.storage = storage;
     this.webviewContext = webviewContext;
     this.logger = new Logger({
       debug:
         process.env.NODE_ENV === "development" ||
         Boolean(process.env.DEBUG === "true"),
     });
-    this.storage = new BoardStorage(context);
   }
 
   public async handleMessage(message: WebviewMessage): Promise<void> {
