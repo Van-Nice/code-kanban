@@ -152,7 +152,7 @@
 
 <div class="p-4">
   <div class="flex justify-between items-center mb-4">
-    <h1 class="text-xl font-medium text-[var(--vscode-foreground)]">Kanban Boards</h1>
+    <h1 class="text-xl font-medium text-[var(--vscode-foreground)]">Boards</h1>
     <button
       onclick={() => isCreatingBoard = true}
       class="px-3 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] flex items-center gap-1"
@@ -278,6 +278,7 @@
                 title="Open in editor"
                 aria-label="Open in editor"
               >
+              <!-- Open in editor svg embedded -->
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                   <polyline points="15 3 21 3 21 9"></polyline>

@@ -12,3 +12,12 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+webview/node_modules
+docs
+.idea
+dist/bundle-stats.json
+dist/test
+webview/**
+reset-data.js
+tsconfig.build.json
+webpack.test.config.js

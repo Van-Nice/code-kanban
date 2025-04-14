@@ -315,6 +315,7 @@
         >
           <!-- Column Title Input Field -->
           <!-- Uses two-way binding to edit the title in state -->
+          <!-- svelte-ignore a11y_autofocus -->
           <input
             type="text"
             bind:value={editedTitle}
