@@ -51,7 +51,7 @@ This extension is built using:
 npm install
 
 # Build the extension
-npm run build
+npm run compile-all
 
 # Package the extension
 vsce package
