@@ -473,7 +473,7 @@
 
 <!-- Delete Confirmation Modal -->
 {#if isConfirmingDelete}
-  <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+  <div class="fixed inset-0 bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 p-4">
     <div class="bg-[var(--vscode-panel-background)] border border-[var(--vscode-panel-border)] rounded-sm p-4 max-w-sm w-full">
       <h3 class="text-sm font-medium text-[var(--vscode-foreground)] mb-2">Confirm Deletion</h3>
       <p class="text-xs text-[var(--vscode-descriptionForeground)] mb-4">
