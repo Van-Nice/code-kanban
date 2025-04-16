@@ -25,6 +25,7 @@ import { handleCreateBoard } from "./board/create-board-handler";
 import { handleDeleteBoard } from "./board/delete-board-handler";
 import { handleOpenBoardInEditor } from "./board/open-board-in-editor-handler";
 import { handleBoardLoaded } from "./board/board-loaded-handler";
+import { handleSetColumnCollapsedState } from "./column/set-column-state-handler";
 
 export interface HandlerContext {
   storage: BoardStorage;
@@ -302,6 +303,8 @@ const handlerMap: Record<
   [Commands.ADD_COLUMN]: handleAddColumn,
   [Commands.UPDATE_COLUMN]: handleUpdateColumn,
   [Commands.DELETE_COLUMN]: handleDeleteColumn,
+  // Column state
+  [Commands.SET_COLUMN_COLLAPSED_STATE]: handleSetColumnCollapsedState,
 
   // Use Command constants for Card operations
   [Commands.ADD_CARD]: handleAddCard,

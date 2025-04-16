@@ -2,6 +2,11 @@ import { Board, Column, Card } from "../models/board";
 import { Commands, CommandType } from "../shared/commands";
 import type { Column as SharedColumn } from "../shared/types";
 
+// Define an augmented column type for responses that include UI state
+export interface ColumnWithCollapsedState extends SharedColumn {
+  collapsed?: boolean;
+}
+
 export interface WebviewMessageBase {
   command: CommandType | string;
 }
@@ -185,7 +190,7 @@ export interface BoardLoadedResponse extends ResponseMessageBase {
   command: "boardLoaded";
   data: {
     success: boolean;
-    columns?: Column[];
+    columns?: ColumnWithCollapsedState[];
     title?: string;
     context?: string;
     updatedAt?: string;
@@ -375,7 +380,7 @@ export interface BoardLoadedMessage extends WebviewMessageBase {
   command: "boardLoaded";
   data: {
     success: boolean;
-    columns: any[];
+    columns: ColumnWithCollapsedState[];
     title: string;
     context: string;
     updatedAt: string;

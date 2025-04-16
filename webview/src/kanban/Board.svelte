@@ -187,7 +187,7 @@
         columns = columns.map(col => {
           if (col.id === targetUpdateColumnId) {
             // Found the correct column, now update the specific card
-            const updatedCards = (col.cards || []).map(card => 
+            const updatedCards = (col.cards || []).map((card: Card) => 
               card.id === updatedCardData.id ? updatedCardData : card
             );
             return { ...col, cards: updatedCards };
@@ -208,7 +208,7 @@
         columns = columns.map(col => {
           if (col.id === targetDeleteColumnId) {
             // Found the correct column, now filter out the deleted card
-            const updatedCards = (col.cards || []).filter(card => card.id !== deletedCardId);
+            const updatedCards = (col.cards || []).filter((card: Card) => card.id !== deletedCardId);
             return { ...col, cards: updatedCards };
           }
           return col; // Return other columns unchanged
@@ -455,6 +455,18 @@
     });
     log('Board: UPDATE_CARD message sent to extension');
   }
+
+  /**
+   * Sends a message to the extension to persist the new collapsed state of a column.
+   */
+  function handleColumnToggle(columnId: string, collapsed: boolean) {
+    log('Column toggle requested', { columnId, collapsed, boardId });
+    // Send message to extension to persist state
+    sendMessage({
+      command: Commands.SET_COLUMN_COLLAPSED_STATE,
+      data: { boardId, columnId, collapsed }
+    });
+  }
 </script>
 
 <!-- Root container with adaptive styling based on context -->
@@ -506,6 +518,8 @@
               title={column.title}
               cards={column.cards}
               boardId={boardId}
+              initialCollapsed={column.collapsed ?? false}
+              onToggleCollapse={(newState) => handleColumnToggle(column.id, newState)}
               onCardMoved={handleCardMove}
               onCardUpdated={handleUpdateCard}
               onCardDeleted={handleCardDeleted}
@@ -530,6 +544,8 @@
               title={column.title}
               cards={column.cards}
               boardId={boardId}
+              initialCollapsed={column.collapsed ?? false}
+              onToggleCollapse={(newState) => handleColumnToggle(column.id, newState)}
               onCardMoved={handleCardMove}
               onCardUpdated={handleUpdateCard}
               onCardDeleted={handleCardDeleted}

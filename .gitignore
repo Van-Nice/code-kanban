@@ -39,3 +39,5 @@ logs
 .temp
 .tmp
 *.vsix
+
+docs/plans

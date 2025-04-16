@@ -4,6 +4,11 @@ import { MessageHandler } from "./handlers/message-handler";
 import { Commands } from "./shared/commands";
 import { BoardStorage } from "./handlers/board/board-storage";
 import { convertToApiBoard } from "./models/adapters"; // May need adapters
+import type { ColumnWithCollapsedState } from "./handlers/messages"; // Import augmented type
+import type {
+  Board as ModelBoard,
+  Column as ModelColumn,
+} from "./models/board"; // Import model types
 
 // Using context for extension-wide data, not global messageHandler
 let extensionContext: vscode.ExtensionContext;
@@ -412,7 +417,9 @@ export function activate(context: vscode.ExtensionContext) {
           `[Extension] Fetching board data for editor panel: ${boardId}`
         );
         // Fetch the raw board data using the shared storage instance
-        const boardData = await boardStorage.getBoard(boardId);
+        const boardData: ModelBoard | null = await boardStorage.getBoard(
+          boardId
+        ); // Ensure type is ModelBoard
 
         if (boardData) {
           console.log(
@@ -421,18 +428,57 @@ export function activate(context: vscode.ExtensionContext) {
           // Update panel title
           panel.title = boardData.title || "Kanban Board";
 
-          // You might need to adapt the data structure if the webview App/Board component
-          // expects the API model (`Board`) instead of the storage model (`SharedBoard`).
-          // Let's assume for now App.svelte can handle the SharedBoard structure from storage.
-          // If not, use adapters: const apiBoard = convertToApiBoard(boardData);
+          // Fetch collapsed states
+          const collapsedStates = await boardStorage.getColumnCollapsedStates(
+            boardId
+          );
+          console.log(
+            `[Extension] Fetched collapsed states for board ${boardId}:`,
+            collapsedStates
+          );
+
+          // --- Convert ModelBoard to SharedBoard with Collapsed State ---
+          const boardPayload = {
+            id: boardData.id,
+            title: boardData.title,
+            description: boardData.description,
+            createdAt: boardData.createdAt.toISOString(),
+            updatedAt: boardData.updatedAt.toISOString(),
+            columns: (boardData.columns || []).map(
+              (col: ModelColumn): ColumnWithCollapsedState => ({
+                // SharedColumn properties
+                id: col.id,
+                title: col.title,
+                order: col.order,
+                createdAt: col.createdAt.toISOString(),
+                updatedAt: col.updatedAt.toISOString(),
+                boardId: boardData.id,
+                cardIds: (col.cards || []).map((c) => c.id),
+                cards: (col.cards || []).map((card) => ({
+                  id: card.id,
+                  title: card.title,
+                  description: card.description,
+                  labels: card.labels,
+                  assignee: card.assignee,
+                  columnId: card.columnId,
+                  boardId: card.boardId,
+                  order: card.order,
+                  createdAt: card.createdAt.toISOString(),
+                  updatedAt: card.updatedAt.toISOString(),
+                })),
+                // Added property
+                collapsed: collapsedStates[col.id] ?? false,
+              })
+            ),
+          };
+          // --- End Conversion ---
 
           // Send the data to the webview
           panel.webview.postMessage({
             command: Commands.BOARD_LOADED,
             data: {
               success: true,
-              // Use the raw boardData or the converted apiBoard depending on webview needs
-              board: boardData,
+              board: boardPayload, // Send the fully converted payload
             },
           });
         } else {

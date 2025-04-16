@@ -47,6 +47,7 @@ export interface Column {
   order: number;
   createdAt: string;
   updatedAt: string;
+  collapsed?: boolean;
 }
 
 // Board types

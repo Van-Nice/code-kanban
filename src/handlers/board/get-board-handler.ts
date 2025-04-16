@@ -1,4 +1,5 @@
 import { GetBoardMessage, BoardResponse } from "../messages";
+import type { ColumnWithCollapsedState } from "../messages";
 import { HandlerContext } from "../message-handler";
 import { Commands } from "../../shared/commands";
 import type {
@@ -12,40 +13,49 @@ import type {
   Card as ModelCard,
 } from "../../models/board";
 
-// Helper function: Convert Model types (with Date objects) to Shared types (with string timestamps)
-function convertToSharedBoard(board: ModelBoard): SharedBoard {
+// Helper function: Convert Model types to Shared types including collapsed state
+function convertToSharedBoard(
+  board: ModelBoard,
+  collapsedStates: { [columnId: string]: boolean }
+): SharedBoard {
   return {
     id: board.id,
     title: board.title,
     description: board.description,
-    createdAt: board.createdAt.toISOString(), // Convert Date to string
-    updatedAt: board.updatedAt.toISOString(), // Convert Date to string
-    // Map ModelColumn[] to SharedColumn[]
+    createdAt: board.createdAt.toISOString(),
+    updatedAt: board.updatedAt.toISOString(),
+    // Map ModelColumn[] to ColumnWithCollapsedState[] (which extends SharedColumn)
     columns: (board.columns || []).map(
-      (col: ModelColumn): SharedColumn => ({
-        id: col.id,
-        title: col.title,
-        order: col.order,
-        createdAt: col.createdAt.toISOString(),
-        updatedAt: col.updatedAt.toISOString(),
-        boardId: board.id,
-        cardIds: (col.cards || []).map((card) => card.id),
-        // Map ModelCard[] to SharedCard[]
-        cards: (col.cards || []).map(
-          (card: ModelCard): SharedCard => ({
-            id: card.id,
-            title: card.title,
-            description: card.description,
-            labels: card.labels,
-            assignee: card.assignee,
-            columnId: card.columnId,
-            boardId: card.boardId,
-            order: card.order,
-            createdAt: card.createdAt.toISOString(), // Convert Date to string
-            updatedAt: card.updatedAt.toISOString(), // Convert Date to string
-          })
-        ),
-      })
+      (col: ModelColumn): ColumnWithCollapsedState => {
+        const isCollapsed = collapsedStates[col.id] ?? false;
+        return {
+          // Properties from SharedColumn
+          id: col.id,
+          title: col.title,
+          order: col.order,
+          createdAt: col.createdAt.toISOString(), // String timestamp
+          updatedAt: col.updatedAt.toISOString(), // String timestamp
+          boardId: board.id,
+          cardIds: (col.cards || []).map((card) => card.id),
+          cards: (col.cards || []).map(
+            // Map ModelCard to SharedCard
+            (card: ModelCard): SharedCard => ({
+              id: card.id,
+              title: card.title,
+              description: card.description,
+              labels: card.labels,
+              assignee: card.assignee,
+              columnId: card.columnId,
+              boardId: card.boardId,
+              order: card.order,
+              createdAt: card.createdAt.toISOString(), // String timestamp
+              updatedAt: card.updatedAt.toISOString(), // String timestamp
+            })
+          ),
+          // Added property
+          collapsed: isCollapsed,
+        };
+      }
     ),
   };
 }
@@ -76,7 +86,18 @@ export async function handleGetBoard(
 
     if (board) {
       logger.debug(`Found board: ${board.title}`);
-      const sharedBoard: SharedBoard = convertToSharedBoard(board);
+      const collapsedStates = await storage.getColumnCollapsedStates(
+        message.data.boardId
+      );
+      logger.debug(
+        `Fetched collapsed states for board ${message.data.boardId}:`,
+        collapsedStates
+      );
+
+      const sharedBoard: SharedBoard = convertToSharedBoard(
+        board,
+        collapsedStates
+      );
 
       // Return the correct response structure expected by App.svelte
       return {

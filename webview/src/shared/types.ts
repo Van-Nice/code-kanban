@@ -22,6 +22,7 @@ export interface Column extends BaseEntity {
   title: string;
   cards: Card[];
   order: number;
+  collapsed?: boolean;
 }
 
 // Board types

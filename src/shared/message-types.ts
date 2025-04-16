@@ -110,6 +110,16 @@ export interface ColumnResponse extends ResponseMessageBase {
   };
 }
 
+// represents column collapse state message
+export interface SetColumnCollapseStateMessage extends WebviewMessageBase {
+  command: typeof Commands.SET_COLUMN_COLLAPSED_STATE;
+  data: {
+    boardId: string;
+    columnId: string;
+    collapsed: boolean;
+  };
+}
+
 /**
  * Message sent when opening a board in editor
  */

@@ -19,6 +19,8 @@ export const Commands = {
   ADD_COLUMN: "addColumn",
   UPDATE_COLUMN: "updateColumn",
   DELETE_COLUMN: "deleteColumn",
+  // Column state commands
+  SET_COLUMN_COLLAPSED_STATE: "updateColumnCollapse",
 
   // Card commands
   ADD_CARD: "createCardCommand",

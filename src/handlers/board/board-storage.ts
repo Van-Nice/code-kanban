@@ -926,6 +926,82 @@ export class BoardStorage implements Storage {
     );
   }
 
+  // --- Methods for Collapsed State (Using workspaceState) ---
+
+  private readonly collapsedStateKey = "boogieBoardUIStates";
+
+  /**
+   * Retrieves the persisted collapsed states for all columns within a specific board.
+   * Reads from workspaceState, specific to the current workspace.
+   * @param boardId The ID of the board to get column states for.
+   * @returns A promise resolving to an object mapping column IDs to their collapsed state (true=collapsed),
+   *          or an empty object if no state is found for the board.
+   */
+  public async getColumnCollapsedStates(
+    boardId: string
+  ): Promise<{ [columnId: string]: boolean }> {
+    try {
+      const allBoardStates = this.context.workspaceState.get<{
+        [boardId: string]: { [columnId: string]: boolean };
+      }>(this.collapsedStateKey, {}); // Default to empty object if key doesn't exist
+
+      // Return the state for the specific board, or an empty object if not found
+      return allBoardStates[boardId] || {};
+    } catch (error) {
+      console.error(
+        `Error getting column collapsed states for board ${boardId}:`,
+        error
+      );
+      // Return empty object in case of error to avoid breaking UI
+      return {};
+    }
+  }
+
+  /**
+   * Persists the collapsed state for a single column within a specific board.
+   * Writes to workspaceState, specific to the current workspace.
+   * @param boardId The ID of the board containing the column.
+   * @param columnId The ID of the column whose state is being set.
+   * @param collapsed The new collapsed state (true=collapsed, false=expanded).
+   * @returns A promise that resolves when the state has been updated.
+   */
+  public async setColumnCollapsedState(
+    boardId: string,
+    columnId: string,
+    collapsed: boolean
+  ): Promise<void> {
+    try {
+      // 1. Get the current state for ALL boards
+      const allBoardStates = this.context.workspaceState.get<{
+        [boardId: string]: { [columnId: string]: boolean };
+      }>(this.collapsedStateKey, {});
+
+      // 2. Ensure the state object for this specific board exists
+      allBoardStates[boardId] = allBoardStates[boardId] || {};
+
+      // 3. Update the state for the specific column
+      allBoardStates[boardId][columnId] = collapsed;
+
+      // 4. Write the entire updated state object back
+      await this.context.workspaceState.update(
+        this.collapsedStateKey,
+        allBoardStates
+      );
+      console.log(
+        `Set collapsed state for ${boardId}/${columnId} to ${collapsed}`
+      );
+    } catch (error) {
+      console.error(
+        `Error setting column collapsed state for board ${boardId}, column ${columnId}:`,
+        error
+      );
+      // Optionally re-throw or handle the error appropriately
+      // throw error;
+    }
+  }
+
+  // --- End Collapsed State Methods ---
+
   public async clear(): Promise<void> {
     await this.saveData({
       boards: new Map(),

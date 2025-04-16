@@ -6,23 +6,38 @@
   import { onMount, onDestroy } from 'svelte';
   import { Commands } from '../shared/commands';
 
-  const { id, title, cards = [], boardId, onCardMoved, onCardUpdated, onCardDeleted, onAddCard, onDeleteColumn, onUpdateColumn } = $props<{
+  const {
+    id,
+    title,
+    cards = [],
+    boardId,
+    initialCollapsed = false,
+    onCardMoved,
+    onCardUpdated,
+    onCardDeleted,
+    onAddCard,
+    onDeleteColumn,
+    onUpdateColumn,
+    onToggleCollapse
+  } = $props<{
     id: string;
     title: string;
     cards?: CardType[];
     boardId: string;
+    initialCollapsed?: boolean;
     onCardMoved: (data: { cardId: string, fromColumnId: string, toColumnId: string, position: number }) => void;
     onCardUpdated: (card: CardType) => void;
     onCardDeleted: (cardId: string) => void;
     onAddCard: (columnId: string) => void;
     onUpdateColumn: (column: ColumnType) => void;
     onDeleteColumn?: (columnId: string) => void;
+    onToggleCollapse: (newState: boolean) => void;
   }>();
 
   let webviewContext = getWebviewContext();
   let isDraggingOver = $state(false);
   let dragOverIndex = $state(-1);
-  let isCollapsed = $state(false);
+  let isCollapsed = $state(initialCollapsed ?? false);
   let isHovered = $state(false);
   let isEditingTitle = $state(false);
   let editedTitle = $state(title);
@@ -227,6 +242,7 @@
 
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
+    onToggleCollapse(isCollapsed);
   }
 
   function startColumnDeleteConfirmation() {
