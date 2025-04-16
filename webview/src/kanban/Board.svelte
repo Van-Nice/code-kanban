@@ -31,6 +31,15 @@
   // Store a reference to the VSCode API
   let vsCodeApi: any;
 
+  // Reference to the horizontal scroll container in editor mode
+  let editorScrollContainer: HTMLElement | null = null;
+
+  // Auto-scroll state
+  let scrollIntervalId: number | null = null;
+  let scrollDirection: 'up' | 'down' | 'left' | 'right' | null = null;
+  const scrollSpeed = 15; // Pixels per interval
+  const scrollInterval = 50; // Milliseconds
+
   onMount(() => {
     // Initialize VSCode API and store the reference
     try {
@@ -467,12 +476,97 @@
       data: { boardId, columnId, collapsed }
     });
   }
+
+  /**
+   * Starts the auto-scroll interval in the specified direction.
+   */
+  function startScrolling(direction: 'up' | 'down' | 'left' | 'right') {
+    if (scrollIntervalId !== null && scrollDirection === direction) {
+      return; // Already scrolling in this direction
+    }
+    
+    stopScrolling(); // Clear any existing interval first
+
+    scrollDirection = direction;
+
+    scrollIntervalId = setInterval(() => {
+      if (webviewContext === 'sidebar') {
+        if (scrollDirection === 'up') {
+          window.scrollBy(0, -scrollSpeed);
+        } else if (scrollDirection === 'down') {
+          window.scrollBy(0, scrollSpeed);
+        }
+      } else if (editorScrollContainer) {
+        if (scrollDirection === 'left') {
+          editorScrollContainer.scrollBy(-scrollSpeed, 0);
+        } else if (scrollDirection === 'right') {
+          editorScrollContainer.scrollBy(scrollSpeed, 0);
+        }
+      }
+    }, scrollInterval);
+  }
+
+  /**
+   * Stops the auto-scroll interval.
+   */
+  function stopScrolling() {
+    if (scrollIntervalId !== null) {
+      clearInterval(scrollIntervalId);
+      scrollIntervalId = null;
+    }
+    scrollDirection = null;
+  }
+
+  /**
+   * Handles drag over events on the main scroll containers to implement auto-scroll.
+   */
+  function handleBoardDragOver(event: DragEvent) {
+    event.preventDefault(); // Necessary to allow dropping
+
+    const target = event.currentTarget as HTMLElement;
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+    const edgeThreshold = 50; // Pixels from the edge to trigger scroll
+
+    if (webviewContext === 'sidebar') {
+      // Sidebar Mode (Vertical Scroll - check viewport edges)
+      const viewportHeight = window.innerHeight;
+      if (clientY < edgeThreshold) {
+        log('Near top edge (sidebar)');
+        startScrolling('up');
+      } else if (clientY > viewportHeight - edgeThreshold) {
+        log('Near bottom edge (sidebar)');
+        startScrolling('down');
+      } else {
+        stopScrolling();
+      }
+    } else if (editorScrollContainer) {
+      // Editor Mode (Horizontal Scroll - check container edges)
+      const rect = editorScrollContainer.getBoundingClientRect();
+      if (clientX < rect.left + edgeThreshold) {
+        log('Near left edge (editor)');
+        startScrolling('left');
+      } else if (clientX > rect.right - edgeThreshold) {
+        log('Near right edge (editor)');
+        startScrolling('right');
+      } else {
+        stopScrolling();
+      }
+    } else {
+        stopScrolling(); // Stop if context changes or container is missing
+    }
+  }
 </script>
 
 <!-- Root container with adaptive styling based on context -->
 <!-- The h-full class makes the container take full height of its parent -->
 <!-- sidebar-context class is conditionally added to apply different styles when displayed in the sidebar -->
-<div class="h-full {webviewContext === 'sidebar' ? 'sidebar-context' : ''}">
+<div 
+  class="h-full {webviewContext === 'sidebar' ? 'sidebar-context' : ''}"
+  ondragover={handleBoardDragOver} 
+  ondragleave={stopScrolling}
+  ondrop={stopScrolling}
+>
   {#if isLoading}
     <!-- Loading state: displays a centered spinner while board data is being fetched -->
     <div class="flex items-center justify-center h-full">
@@ -533,7 +627,13 @@
     {:else}
       <!-- Editor layout: columns arranged horizontally (side by side) -->
       <!-- This is the standard Kanban layout for wider views -->
-      <div class="flex gap-4 min-h-screen overflow-x-auto pb-4">
+      <div
+        bind:this={editorScrollContainer}
+        class="flex gap-4 min-h-screen overflow-x-auto pb-4"
+        ondragover={handleBoardDragOver}
+        ondragleave={() => { /* TODO: Stop scrolling if active */ }}
+        ondrop={() => { /* TODO: Stop scrolling if active */ }}
+      >
         <!-- Loop through each column and render it horizontally -->
         {#each columns as column (column.id)}
           <!-- Each column has fixed width (w-72 = 18rem) and doesn't shrink -->
