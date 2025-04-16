@@ -31,6 +31,14 @@
   // Store a reference to the VSCode API
   let vsCodeApi: any;
 
+  // --- Drag Scroll State & Constants ---
+  let scrollContainer: HTMLElement | null = $state(null);
+  let scrollInterval: number | null = $state(null);
+  const SCROLL_ZONE_WIDTH = 60; // Pixels
+  const MAX_SCROLL_SPEED = 15; // Pixels per interval
+  const SCROLL_INTERVAL_MS = 16; // Approx 60 FPS
+  // --- End Drag Scroll ---
+
   onMount(() => {
     // Initialize VSCode API and store the reference
     try {
@@ -79,6 +87,13 @@
       log('Board: cleaning up message listener');
       removeMessageListener(messageHandler);
     }
+    // --- Drag Scroll Cleanup ---
+    if (scrollInterval) {
+      clearInterval(scrollInterval);
+      scrollInterval = null;
+      log('Board: Drag scroll interval cleared on destroy');
+    }
+    // --- End Drag Scroll Cleanup ---
   });
 
   function handleExtensionMessage(message: any) {
@@ -467,6 +482,114 @@
       data: { boardId, columnId, collapsed }
     });
   }
+
+  // --- Drag Scroll Helper Functions ---
+  function clearScrollInterval() {
+    if (scrollInterval !== null) {
+      clearInterval(scrollInterval);
+      scrollInterval = null;
+      // log('Board: Drag scroll interval cleared.'); // Keep logs minimal unless debugging
+    }
+  }
+
+  // Modified to handle both X and Y scrolling
+  function startScrolling(speedX: number, speedY: number) {
+    if (scrollInterval !== null || !scrollContainer) return; // Already scrolling or no container
+    if (speedX === 0 && speedY === 0) return; // No speed, don't start
+
+    scrollInterval = setInterval(() => {
+      if (scrollContainer) {
+        // log(`Board: Scrolling X:${speedX}, Y:${speedY}. ScrollLeft: ${scrollContainer.scrollLeft}, ScrollTop: ${scrollContainer.scrollTop}`);
+        if (speedX !== 0) {
+          scrollContainer.scrollLeft += speedX;
+        }
+        if (speedY !== 0) {
+           scrollContainer.scrollTop += speedY;
+        }
+      } else {
+        clearScrollInterval(); // Stop if container becomes null
+      }
+    }, SCROLL_INTERVAL_MS);
+    // log(`Board: Started scrolling with speed X: ${speedX}, Y: ${speedY}`);
+  }
+  // --- End Drag Scroll Helper Functions ---
+
+  // --- Drag Scroll Event Handlers ---
+  function handleBoardDragOver(event: DragEvent) {
+    event.preventDefault(); // Necessary to allow dropping
+
+    if (!scrollContainer) {
+      // log('Board: DragOver - No scroll container');
+      clearScrollInterval();
+      return;
+    }
+
+    // Check if a valid card drag operation is in progress
+    if (!event.dataTransfer || !event.dataTransfer.types.includes('text/plain')) {
+      clearScrollInterval();
+      return;
+    }
+
+    const rect = scrollContainer.getBoundingClientRect();
+    const x = event.clientX;
+    const y = event.clientY;
+    let scrollSpeedX = 0;
+    let scrollSpeedY = 0;
+
+    // Check horizontal zones
+    if (x > rect.right - SCROLL_ZONE_WIDTH && x <= rect.right) {
+      const proximity = (x - (rect.right - SCROLL_ZONE_WIDTH)) / SCROLL_ZONE_WIDTH;
+      scrollSpeedX = Math.max(1, Math.ceil(proximity * MAX_SCROLL_SPEED));
+    } else if (x < rect.left + SCROLL_ZONE_WIDTH && x >= rect.left) {
+      const proximity = ((rect.left + SCROLL_ZONE_WIDTH) - x) / SCROLL_ZONE_WIDTH;
+      scrollSpeedX = -Math.max(1, Math.ceil(proximity * MAX_SCROLL_SPEED));
+    }
+
+    // Check vertical zones
+    if (y > rect.bottom - SCROLL_ZONE_WIDTH && y <= rect.bottom) {
+      const proximity = (y - (rect.bottom - SCROLL_ZONE_WIDTH)) / SCROLL_ZONE_WIDTH;
+      scrollSpeedY = Math.max(1, Math.ceil(proximity * MAX_SCROLL_SPEED));
+    } else if (y < rect.top + SCROLL_ZONE_WIDTH && y >= rect.top) {
+      const proximity = ((rect.top + SCROLL_ZONE_WIDTH) - y) / SCROLL_ZONE_WIDTH;
+      scrollSpeedY = -Math.max(1, Math.ceil(proximity * MAX_SCROLL_SPEED));
+    }
+
+    // Manage scrolling interval
+    if (scrollSpeedX !== 0 || scrollSpeedY !== 0) {
+      // If already scrolling, clear interval to potentially change speed/direction
+      if (scrollInterval !== null) {
+         clearScrollInterval();
+      }
+      startScrolling(scrollSpeedX, scrollSpeedY);
+    } else {
+      // Outside all scroll zones
+      clearScrollInterval();
+    }
+  }
+
+  function handleBoardDragLeave(event: DragEvent) {
+    if (!scrollContainer) {
+      log('Board: DragLeave - No scroll container');
+      return;
+    }
+    // Check if the mouse has truly left the container bounds
+    // `relatedTarget` can be null or an element outside the container
+    const rect = scrollContainer.getBoundingClientRect();
+    if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) {
+        log('Board: DragLeave - Mouse left container bounds.');
+        clearScrollInterval();
+    } else {
+        // log('Board: DragLeave - Left container but still inside bounds (likely moved onto child element)');
+        // Don't clear interval here, let dragover handle it.
+    }
+  }
+
+  function handleBoardDrop(event: DragEvent) {
+    log('Board: Drop detected on board.');
+    clearScrollInterval(); // Stop scrolling when the item is dropped
+    // Note: The actual drop logic (moving card) is handled elsewhere (e.g., in ColumnComponent or via message passing)
+  }
+  // --- End Drag Scroll Event Handlers ---
 </script>
 
 <!-- Root container with adaptive styling based on context -->
@@ -533,7 +656,13 @@
     {:else}
       <!-- Editor layout: columns arranged horizontally (side by side) -->
       <!-- This is the standard Kanban layout for wider views -->
-      <div class="flex gap-4 min-h-screen overflow-x-auto pb-4">
+      <div
+        class="flex gap-4 min-h-screen overflow-auto pb-4"
+        bind:this={scrollContainer}
+        ondragover={handleBoardDragOver}
+        ondragleave={handleBoardDragLeave}
+        ondrop={handleBoardDrop}
+      >
         <!-- Loop through each column and render it horizontally -->
         {#each columns as column (column.id)}
           <!-- Each column has fixed width (w-72 = 18rem) and doesn't shrink -->
