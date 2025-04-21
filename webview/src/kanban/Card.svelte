@@ -13,6 +13,8 @@
     tags = [],
     columnId, 
     boardId,
+    order,
+    createdAt,
     onUpdateCard, // Callback for updating the card
     onDeleteCard  // Callback for deleting the card
   } = $props<{
@@ -22,6 +24,8 @@
     tags?: string[];
     columnId: string;
     boardId: string;
+    order: number;
+    createdAt: string;
     onUpdateCard: (card: CardType) => void;
     onDeleteCard: (cardId: string) => void;
   }>();
@@ -81,20 +85,21 @@
       editedTitle,
       originalTitle: title, 
       editedDescription, 
-      hasChanged: editedTitle !== title || editedDescription !== description
+      editedTags: [...editedTags],
+      hasChanged: editedTitle !== title || editedDescription !== description || JSON.stringify(tags) !== JSON.stringify(editedTags)
     });
     
     // Create a copy of the card with updated values
-    const updatedCard = {
+    const updatedCard: CardType = {
       id, // Keep the same ID
-      title: editedTitle, // Make sure we're using the edited title
-      description: editedDescription,
-      tags: editedTags,
+      title: editedTitle.trim(), // Trim title
+      description: editedDescription.trim(), // Trim description
+      tags: [...editedTags], // Ensure plain array is passed
       columnId,
       boardId,
-      order: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      order, // Use the original order prop
+      createdAt, // Use the original createdAt prop
+      updatedAt: new Date().toISOString() // Update this timestamp - backend should ideally do this
     };
     
     try {

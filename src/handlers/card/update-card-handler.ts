@@ -76,38 +76,89 @@ export async function handleUpdateCard(
       if (cardIndex !== -1) {
         // Update card properties
         const card = column.cards[cardIndex];
+        const originalCardDataForLog = { ...card }; // Log original state
 
-        // Update the card with the new values
-        card.title = sanitizeString(message.data.title, 100);
-        card.description = sanitizeString(message.data.description, 1000);
-        card.updatedAt = new Date().toISOString(); // Convert to string for handler type
+        // Update the card with the new values from the message
+        let updated = false;
+        if (message.data.title && card.title !== message.data.title) {
+          card.title = sanitizeString(message.data.title, 100);
+          updated = true;
+        }
+        if (
+          message.data.description !== undefined &&
+          card.description !== message.data.description
+        ) {
+          card.description = sanitizeString(message.data.description, 1000);
+          updated = true;
+        }
+        if (
+          message.data.tags !== undefined &&
+          JSON.stringify(card.tags) !== JSON.stringify(message.data.tags)
+        ) {
+          // Ensure tags is always an array
+          card.tags = Array.isArray(message.data.tags)
+            ? message.data.tags.map((tag) => sanitizeString(tag, 50))
+            : [];
+          updated = true;
+        }
+        if (
+          message.data.order !== undefined &&
+          card.order !== message.data.order
+        ) {
+          card.order = message.data.order;
+          updated = true;
+        }
 
-        // Convert to ModelBoard before saving
+        if (updated) {
+          card.updatedAt = new Date().toISOString();
+          logger.debug("[handleUpdateCard] Updated card fields:", {
+            id: card.id,
+            title: card.title,
+            description: card.description,
+            tags: card.tags,
+            order: card.order,
+          });
+        } else {
+          logger.debug(
+            "[handleUpdateCard] No fields changed for card:",
+            card.id
+          );
+          // Optionally return early if nothing changed?
+          // For now, we still save to update the board's general updatedAt potentially.
+        }
+
+        // Convert to ModelBoard before saving - NOTE: This still saves the whole board
         const modelBoard: ModelBoard = {
-          ...board,
+          id: board.id,
+          title: board.title,
           description: board.description || "",
           columns: board.columns.map((col) => ({
             id: col.id,
             title: col.title,
             boardId: board.id,
-            cards: col.cards?.map((c) => ({
-              id: c.id,
-              title: c.title,
-              description: c.description || "",
-              columnId: c.columnId,
-              boardId: board.id,
-              tags: (c as any).tags || [],
-              order: (c as any).order || 0,
-              createdAt: new Date(c.createdAt),
-              updatedAt: new Date(c.updatedAt),
-            })),
+            // Use the updated card data when mapping
+            cards: col.cards?.map((c) => {
+              const cardToSave = c.id === card.id ? card : c; // Use the updated card if it matches
+              return {
+                id: cardToSave.id,
+                title: cardToSave.title,
+                description: cardToSave.description || "",
+                columnId: cardToSave.columnId,
+                boardId: board.id,
+                tags: cardToSave.tags || [], // Use updated tags
+                order: cardToSave.order || 0, // Use updated order
+                createdAt: new Date(cardToSave.createdAt),
+                updatedAt: new Date(cardToSave.updatedAt),
+              };
+            }),
             cardIds: col.cards?.map((c) => c.id) || [],
             order: (col as any).order || 0,
             createdAt: new Date(col.createdAt),
             updatedAt: new Date(col.updatedAt),
           })),
           createdAt: new Date(board.createdAt),
-          updatedAt: new Date(board.updatedAt),
+          // Update the board's updatedAt timestamp as well
+          updatedAt: new Date(),
         };
 
         // ADDED: Log before saving
@@ -133,8 +184,8 @@ export async function handleUpdateCard(
           description: card.description || "",
           columnId: card.columnId,
           boardId: message.data.boardId,
-          tags: (card as any).tags || [],
-          order: (card as any).order || 0,
+          tags: card.tags || [], // Use updated tags for response
+          order: card.order || 0, // Use updated order for response
           createdAt: new Date(card.createdAt),
           updatedAt: new Date(card.updatedAt),
         };

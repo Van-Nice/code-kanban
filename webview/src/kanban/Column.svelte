@@ -446,8 +446,14 @@
           <!-- Renders the actual card UI and handles card-level interactions -->
           <!-- Passes callbacks to handle data changes that bubble up to the column -->
           <Card
-            {...card}
+            id={card.id}
+            title={card.title}
+            description={card.description}
+            tags={card.tags}
             columnId={id}
+            boardId={boardId}
+            order={card.order} 
+            createdAt={card.createdAt}
             onUpdateCard={(updatedCard: CardType) => {
               log('Card update received in column', updatedCard);
               onCardUpdated(updatedCard);
@@ -455,13 +461,6 @@
             onDeleteCard={(cardId: string) => {
               log('Card delete received in column', cardId);
               onCardDeleted(cardId);
-            }}
-            onStartDrag={(event: DragEvent, cardId: string) => {
-              log('Card drag started in column', { cardId });
-              if (event.dataTransfer) {
-                event.dataTransfer.setData('text/plain', JSON.stringify({ cardId, fromColumnId: id }));
-                event.dataTransfer.effectAllowed = 'move';
-              }
             }}
           />
         </div>

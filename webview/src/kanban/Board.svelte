@@ -365,9 +365,24 @@
   }
 
   function handleCardUpdated(card: Card) {
+    // Ensure tags are a plain array before sending
+    const plainTags = Array.isArray(card.tags) ? [...card.tags] : []; 
+    
+    log('Board: Sending UPDATE_CARD message', { cardId: card.id, title: card.title, description: card.description, tags: plainTags });
+    
     sendMessage({
       command: Commands.UPDATE_CARD,
-      data: { card, boardId }
+      data: {
+        boardId: boardId, // Make sure boardId is passed correctly
+        columnId: card.columnId, // Pass columnId
+        cardId: card.id, // Pass cardId
+        title: card.title,
+        description: card.description,
+        tags: plainTags, // Use plain array
+        order: card.order // Pass order
+        // createdAt is not needed for update message
+        // updatedAt will be set by the backend
+      }
     });
   }
 
