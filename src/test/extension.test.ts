@@ -349,8 +349,7 @@ suite("Extension Test Suite", () => {
         id: "test-card-1",
         title: "Test Card",
         description: "Test Description",
-        labels: ["test"],
-        assignee: "test-user",
+        tags: ["test"],
         columnId: testColumn.id,
         boardId: testBoard.id,
         order: 0,
@@ -381,8 +380,7 @@ suite("Extension Test Suite", () => {
         id: "test-card-2",
         title: "Original Card",
         description: "Original Description",
-        labels: ["test"],
-        assignee: "test-user",
+        tags: ["test"],
         columnId: testColumn.id,
         boardId: testBoard.id,
         order: 0,
@@ -411,8 +409,7 @@ suite("Extension Test Suite", () => {
         id: "test-card-3",
         title: "Card to Remove",
         description: "Will be removed",
-        labels: ["test"],
-        assignee: "test-user",
+        tags: ["test"],
         columnId: testColumn.id,
         boardId: testBoard.id,
         order: 0,
@@ -517,8 +514,7 @@ suite("Extension Test Suite", () => {
         columnId: "column-1",
         boardId: "board-1",
         order: 0,
-        labels: [],
-        assignee: "user1",
+        tags: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -530,8 +526,8 @@ suite("Extension Test Suite", () => {
         columnId: "column-1",
         boardId: "board-1",
         order: 0,
-        labels: [],
-        // Missing assignee, createdAt, updatedAt
+        tags: [],
+        // Missing createdAt, updatedAt
       };
 
       assert.ok(isCardData(validCardData), "Valid card data should pass");

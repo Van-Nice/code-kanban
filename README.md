@@ -4,12 +4,11 @@ Boogie is a Kanban board extension for VS Code that helps you manage tasks and w
 
 ## Features
 
-- Create and manage multiple Kanban boards
-- Drag and drop cards between columns
-- View boards in the sidebar or in a dedicated editor tab
-- Customize card details with titles, descriptions, labels, and assignees
-- Collapse columns to save space
-- Persistent storage of boards and cards
+- Create, edit, and delete boards, columns, and cards.
+- Drag and drop cards between columns and reorder columns/cards.
+- Customize card details with titles, descriptions, and tags.
+- View and manage your Kanban boards directly within VS Code's sidebar or editor.
+- Collapsed column state persistence.
 
 ## Installation
 

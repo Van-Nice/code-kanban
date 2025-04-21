@@ -10,8 +10,7 @@
     id, 
     title, 
     description = '', 
-    labels = [], 
-    assignee = '', 
+    tags = [],
     columnId, 
     boardId,
     onUpdateCard, // Callback for updating the card
@@ -20,8 +19,7 @@
     id: string;
     title: string;
     description?: string;
-    labels?: string[];
-    assignee?: string;
+    tags?: string[];
     columnId: string;
     boardId: string;
     onUpdateCard: (card: CardType) => void;
@@ -31,9 +29,8 @@
   let isEditing = $state(false);
   let editedTitle = $state(title);
   let editedDescription = $state(description);
-  let editedLabels = $state([...labels]);
-  let editedAssignee = $state(assignee);
-  let newLabel = $state('');
+  let editedTags = $state([...tags]);
+  let newTag = $state('');
   let webviewContext = getWebviewContext();
   let isDragging = $state(false);
   let cardTitleInput = $state<HTMLInputElement | null>(null);
@@ -44,8 +41,7 @@
     isEditing = true;
     editedTitle = title;
     editedDescription = description;
-    editedLabels = [...labels];
-    editedAssignee = assignee;
+    editedTags = [...tags];
   }
 
   onMount(() => {
@@ -93,8 +89,7 @@
       id, // Keep the same ID
       title: editedTitle, // Make sure we're using the edited title
       description: editedDescription,
-      labels: editedLabels,
-      assignee: editedAssignee,
+      tags: editedTags,
       columnId,
       boardId,
       order: 0,
@@ -136,16 +131,16 @@
     });
   }
 
-  function addLabel() {
-    if (!newLabel.trim()) return;
-    if (editedLabels.includes(newLabel)) return;
+  function addTag() {
+    if (!newTag.trim()) return;
+    if (editedTags.includes(newTag)) return;
 
-    editedLabels = [...editedLabels, newLabel];
-    newLabel = '';
+    editedTags = [...editedTags, newTag];
+    newTag = '';
   }
 
-  function removeLabel(label: string) {
-    editedLabels = editedLabels.filter(l => l !== label);
+  function removeTag(tagToRemove: string) {
+    editedTags = editedTags.filter(t => t !== tagToRemove);
   }
 
   function handleDragStart(event: DragEvent) {
@@ -232,207 +227,121 @@
         ></textarea>
       </div>
 
-      <!-- Assignee Input Field -->
-      <!-- Two-way binding to editedAssignee state variable -->
+      <!-- Tags Section (was Labels) -->
       <div>
-        <label for="card-assignee" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Assignee</label>
-        <input
-          type="text"
-          id="card-assignee"
-          bind:value={editedAssignee}
-          class="w-full px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-          placeholder="Assign to..."
-          onkeydown={(e: KeyboardEvent) => {
-            e.stopPropagation();
-          }}
-        />
-      </div>
-
-      <!-- Labels Section -->
-      <div>
-        <label for="new-label" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Labels</label>
-        <!-- Container for displaying existing labels with remove buttons -->
-        <div class="flex flex-wrap gap-1 mb-2">
-          {#each editedLabels as label}
-            <!-- Individual label badge with remove button -->
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)]">
-              {label}
-              <!-- Remove label button -->
-              <!-- Call removeLabel function with current label -->
-              <button
-                onclick={() => removeLabel(label)}
-                class="ml-1 text-[var(--vscode-badge-foreground)] hover:text-[var(--vscode-errorForeground)]"
-                aria-label="Remove label {label}"
+        <label for="card-tags" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Tags</label>
+        <div class="flex flex-wrap gap-1 mb-1">
+          {#each editedTags as tag (tag)}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              {tag}
+              <button 
+                type="button"
+                onclick={() => removeTag(tag)} 
+                class="ml-1.5 inline-flex text-blue-400 hover:text-blue-500 focus:outline-none focus:text-blue-500"
+                aria-label="Remove tag: {tag}"
               >
-                <!-- X icon for removing label (SVG) -->
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                <svg class="h-3 w-3" stroke="currentColor" fill="none" viewBox="0 0 8 8">
+                  <path stroke-linecap="round" stroke-width="1.5" d="M1 1l6 6m0-6L1 7" />
                 </svg>
               </button>
             </span>
           {/each}
         </div>
-        <!-- Input group for adding new labels -->
-        <div class="flex gap-1">
-          <!-- New label text input with Enter key support -->
-          <!-- Two-way binding to newLabel state variable -->
+        <div class="flex">
           <input
             type="text"
-            bind:value={newLabel}
-            id="new-label"
-            class="flex-1 px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-l-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-            placeholder="Add label..."
+            id="card-tags"
+            bind:value={newTag}
+            class="flex-grow px-2 py-1 text-sm bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-l-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+            placeholder="Add new tag..."
             onkeydown={(e: KeyboardEvent) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                addLabel();
+                addTag();
               }
+              e.stopPropagation();
             }}
           />
-          <!-- Add label button -->
-          <button
-            onclick={addLabel}
-            class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-r-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+          <button 
+            type="button" 
+            onclick={addTag}
+            class="px-3 py-1 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border border-[var(--vscode-button-border)] rounded-r-sm hover:bg-[var(--vscode-button-hoverBackground)] transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
           >
             Add
           </button>
         </div>
       </div>
 
-      <!-- Action Buttons Container -->
-      <div class="flex justify-between pt-2">
-        <!-- Delete Card Button (Left Side) -->
-        <button
-          type="button"
-          onclick={(e: MouseEvent) => { 
-            e.stopPropagation();
-            deleteCard(); 
-          }}          
-          class="px-2 py-1 text-sm text-[var(--vscode-errorForeground)] border border-[var(--vscode-errorForeground)] rounded-sm hover:bg-[var(--vscode-errorForeground)] hover:text-[var(--vscode-editor-background)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-errorForeground)]"
-        >
-          <span class="flex items-center gap-1">
-            <!-- Trash/Delete icon (SVG) -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-            Delete
-          </span>
-        </button>
-        
-        <!-- Cancel and Save Buttons Container (Right Side) -->
-        <div class="flex gap-2">
-          <!-- Cancel Button -->
-          <button
-            type="button"
-            onclick={(e: MouseEvent) => {
-              e.stopPropagation();
-              cancelEditing();
-            }}
-            class="px-2 py-1 text-sm text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-          >
-            Cancel
-          </button>
-          <!-- Save Button -->
-          <!-- Disable button when save operation is in progress -->
-          <button
-            type="button"
-            onclick={(e: MouseEvent) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!isSaving) {
-                log('Save button clicked, current title:', editedTitle);
-                saveChanges();
-              }
-            }}
-            class="px-2 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-      </div>
-
-      <!-- Error Message Display (conditional) -->
+      <!-- Error Message Display -->
       {#if saveError}
-        <div class="mt-2 text-[var(--vscode-errorForeground)] text-xs">
-          Error: {saveError}
-        </div>
+        <p class="text-xs text-[var(--vscode-errorForeground)]">{saveError}</p>
       {/if}
-    </form>
-  <!-- Display Mode - Shown when not in edit mode -->
-  {:else}
-    <!-- Card content container that serves as click target for editing -->
-    <div
-      role="button"
-      tabindex="0"
-      class="p-3 cursor-pointer"
-      onclick={startEditing}
-      onkeydown={(e: KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          startEditing();
-        }
-      }}
-    >
-      <!-- Card Header with Title and Edit Button -->
-      <div class="flex justify-between items-start gap-2">
-        <!-- Card Title -->
-        <h3 class="text-sm font-medium text-[var(--vscode-foreground)] break-words">{title}</h3>
-        <!-- Edit Button (pencil icon) -->
-        <button
-          onclick={(e: MouseEvent) => { e.stopPropagation(); startEditing(); }}          
-          title="Edit card"
-          aria-label="Edit card"
+
+      <!-- Action Buttons -->
+      <div class="flex justify-end space-x-2 pt-2">
+        <button 
+          type="button" 
+          onclick={cancelEditing} 
+          class="px-3 py-1 text-sm bg-[var(--vscode-secondaryButton-background)] text-[var(--vscode-secondaryButton-foreground)] border border-[var(--vscode-secondaryButton-border)] rounded-sm hover:bg-[var(--vscode-secondaryButton-hoverBackground)] transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
         >
-          <!-- Edit/Pencil icon (SVG) -->
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-          </svg>
+          Cancel
+        </button>
+        <button 
+          type="submit" 
+          disabled={isSaving}
+          class="px-3 py-1 text-sm bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border border-[var(--vscode-button-border)] rounded-sm hover:bg-[var(--vscode-button-hoverBackground)] transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)] disabled:opacity-50"
+        >
+          {#if isSaving}
+            Saving...
+          {:else}
+            Save Changes
+          {/if}
         </button>
       </div>
-
-      <!-- Card Description (conditional) -->
+    </form>
+  {:else}
+    <!-- Non-Editing Mode -->
+    <div class="p-3 cursor-grab" onclick={handleCardClick} role="button" aria-label="Edit card: {title}">
+      <!-- Card Title -->
+      <h3 class="text-sm font-medium text-[var(--vscode-foreground)] mb-1">{title}</h3>
+      
+      <!-- Card Description (if exists) -->
       {#if description}
-        <p class="mt-1 text-xs text-[var(--vscode-descriptionForeground)] break-words">{description}</p>
+        <p class="text-xs text-[var(--vscode-descriptionForeground)] mb-2">{description}</p>
       {/if}
 
-      <!-- Card Labels (conditional) -->
-      {#if labels.length > 0}
-        <div class="flex flex-wrap gap-1 mt-2">
-          {#each labels as label}
-            <!-- Label badge without delete button in display mode -->
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)]">
-              {label}
-            </span>
-          {/each}
-        </div>
-      {/if}
+      <!-- Tags Display (was Labels) -->
+      <div class="flex flex-wrap gap-1">
+        {#each tags as tag (tag)}
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+            {tag}
+          </span>
+        {/each}
+      </div>
 
-      <!-- Card Assignee (conditional) -->
-      {#if assignee}
-        <div class="mt-2 text-xs text-[var(--vscode-descriptionForeground)] flex items-center gap-1">
-          <!-- User/Person icon (SVG) -->
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
-          {assignee}
-        </div>
-      {/if}
+      <!-- Delete Button (visible on hover/focus) -->
+      <!-- This button appears only when not editing and card is hovered/focused -->
+      <!-- Positioned absolute in the top-right corner for easy access -->
+      <button
+        onclick={(e: MouseEvent) => {
+          e.stopPropagation(); // Prevent the click from triggering edit mode
+          deleteCard();
+        }}
+        aria-label="Delete card: {title}"
+        class="absolute top-1 right-1 p-1 text-[var(--vscode-icon-foreground)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-[var(--vscode-errorForeground)] transition-opacity duration-150 rounded-full hover:bg-[var(--vscode-toolbar-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+      >
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   {/if}
 </div>
 
-<!-- Scoped CSS for Card Component -->
 <style>
-  /* Add smooth transition effect to all div elements within this component */
-  div {
-    transition: all 0.2s ease;
+  /* Add a style to make the delete button visible on hover/focus of the parent card */
+  div[role="button"]:hover > button[aria-label^="Delete card"],
+  div[role="button"]:focus-within > button[aria-label^="Delete card"] {
+    opacity: 1;
   }
 </style>

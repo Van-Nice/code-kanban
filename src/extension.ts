@@ -458,8 +458,7 @@ export function activate(context: vscode.ExtensionContext) {
                   id: card.id,
                   title: card.title,
                   description: card.description,
-                  labels: card.labels,
-                  assignee: card.assignee,
+                  tags: card.tags,
                   columnId: card.columnId,
                   boardId: card.boardId,
                   order: card.order,
@@ -519,16 +518,14 @@ export function activate(context: vscode.ExtensionContext) {
       columnId: string,
       boardId: string,
       description?: string,
-      labels?: string[],
-      assignee?: string
+      tags?: string[]
     ) => {
       console.log("🎯 Direct add card command called with:", {
         title,
         columnId,
         boardId,
         description,
-        labels,
-        assignee,
+        tags,
       });
 
       try {
@@ -549,8 +546,7 @@ export function activate(context: vscode.ExtensionContext) {
           description: description?.slice(0, 1000) || "",
           columnId: columnId,
           boardId: boardId,
-          labels: labels || [],
-          assignee: assignee || "",
+          tags: tags || [],
           order: 0,
           createdAt: new Date(),
           updatedAt: new Date(),

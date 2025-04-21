@@ -70,11 +70,11 @@ Contains components related to the Kanban board functionality.
   - Handles column deletion via a context menu and confirmation step, calling `onDeleteColumn`.
   - Provides an "Add Card" button that triggers the `onAddCard` callback.
 - **`Card.svelte`**: Component representing a single card within a column.
-  - Receives card data (`id`, `title`, `description`, etc.) and callbacks (`onUpdateCard`, `onDeleteCard`) as props.
-  - Displays card information.
-  - Handles card editing state (`isEditing`) and provides an inline form to modify title, description, labels, and assignee. Calls `onUpdateCard` when changes are saved.
-  - Handles card deletion, calling `onDeleteCard`.
-  - Initiates drag-and-drop operations (`handleDragStart`, `handleDragEnd`).
+  - Displays a single Kanban card.
+  - Responsible for rendering card details (title, description, tags).
+  - Handles drag-and-drop initiation for cards.
+  - Handles card editing state (`isEditing`) and provides an inline form to modify title, description, and tags. Calls `onUpdateCard` when changes are saved.
+  - Calls `onDeleteCard` when the delete action is triggered.
 - **`BoardList.svelte`**: Component displayed when no specific board is selected.
   - Fetches and displays a list of all available boards by sending a `GET_BOARDS` message on mount.
   - Handles messages like `BOARDS_LOADED`, `BOARD_CREATED`, `BOARD_DELETED` to update the list.

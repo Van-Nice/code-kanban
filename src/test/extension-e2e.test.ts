@@ -45,11 +45,13 @@ suite("Extension End-to-End Tests", () => {
   let extensionContext: vscode.ExtensionContext;
   let testBoard: Board;
   // Storage for our mock context
-  let mockStorage: Map<string, any>;
+  let mockGlobalStorage: Map<string, any>;
+  let mockWorkspaceStorage: Map<string, any>; // Map for workspaceState
 
   setup(async () => {
     // Instead of activating the extension, create a mock extension context
-    mockStorage = new Map();
+    mockGlobalStorage = new Map();
+    mockWorkspaceStorage = new Map(); // Initialize map for workspaceState
 
     // Create a mock extension context
     extensionContext = {
@@ -91,19 +93,24 @@ suite("Extension End-to-End Tests", () => {
       } as vscode.GlobalEnvironmentVariableCollection,
       extensionMode: vscode.ExtensionMode.Test,
       globalState: {
-        get: (key: string) => mockStorage.get(key),
+        get: (key: string) => mockGlobalStorage.get(key),
         update: async (key: string, value: any) => {
-          mockStorage.set(key, value);
+          mockGlobalStorage.set(key, value);
           return Promise.resolve();
         },
         setKeysForSync: () => {},
-        keys: () => Array.from(mockStorage.keys()),
+        keys: () => Array.from(mockGlobalStorage.keys()),
       } as vscode.Memento & { setKeysForSync(keys: readonly string[]): void },
       workspaceState: {
-        get: () => undefined,
-        update: () => Promise.resolve(),
+        get: <T>(key: string, defaultValue?: T): T | undefined => {
+          return mockWorkspaceStorage.get(key) ?? defaultValue;
+        },
+        update: async (key: string, value: any) => {
+          mockWorkspaceStorage.set(key, value);
+          return Promise.resolve();
+        },
         setKeysForSync: () => {},
-        keys: () => [],
+        keys: () => Array.from(mockWorkspaceStorage.keys()),
       } as vscode.Memento & { setKeysForSync(keys: readonly string[]): void },
       secrets: {
         get: () => Promise.resolve(undefined),
@@ -126,7 +133,12 @@ suite("Extension End-to-End Tests", () => {
     // Set up test board
     mockWebview = new MockWebview();
     boardStorage = new BoardStorage(extensionContext);
-    messageHandler = new MessageHandler(mockWebview, extensionContext, "test");
+    messageHandler = new MessageHandler(
+      mockWebview,
+      extensionContext,
+      boardStorage,
+      "test"
+    );
 
     // Clear storage before each test
     await boardStorage.clear();
@@ -163,7 +175,7 @@ suite("Extension End-to-End Tests", () => {
         return mockHandlers;
       }
       return originalHandlerRequire(id);
-    };
+    } as any;
 
     // Import the actual handler function directly
     const { handleAddColumn } = await import(
@@ -419,25 +431,6 @@ suite("Extension End-to-End Tests", () => {
       "Board should have one column"
     );
 
-    // STEP 2: Test that boardLoaded message is recognized when coming from webview
-    const boardLoadedMessage: WebviewMessage = {
-      command: "boardLoaded",
-      data: {
-        success: true,
-        columns: [column],
-        title: testBoard.title,
-        context: "test",
-        updatedAt: new Date().toISOString(),
-      },
-    };
-
-    // This should not throw an error
-    await messageHandler.handleMessage(boardLoadedMessage);
-
-    // We don't expect a response for this message, but it shouldn't cause errors
-    assert.ok(
-      true,
-      "boardLoaded command from webview should be handled without errors"
-    );
+    // STEP 2 REMOVED - Handler should not receive boardLoaded from webview
   });
 });

@@ -91,8 +91,7 @@ export function convertToModelCard(
     description: card.description || "", // Handle potentially undefined description
     columnId: card.columnId,
     boardId: cardBoardId,
-    labels: (card as any).labels || [],
-    assignee: (card as any).assignee || "",
+    tags: (card as any).tags || [],
     order: (card as any).order || 0,
     createdAt:
       typeof card.createdAt === "string"
@@ -144,8 +143,7 @@ export function convertToSharedCard(card: ModelCard): SharedCard {
     id: card.id,
     title: card.title,
     description: card.description,
-    labels: card.labels,
-    assignee: card.assignee,
+    tags: card.tags,
     columnId: card.columnId,
     boardId: card.boardId,
     order: card.order,

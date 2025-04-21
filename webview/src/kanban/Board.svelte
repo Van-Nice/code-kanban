@@ -24,15 +24,17 @@
   let targetColumnId = $state('');
   let newCardTitle = $state('');
   let newCardDescription = $state('');
-  let newCardAssignee = $state(''); 
-  let newCardLabels = $state<string[]>([]);
-  let newLabelInput = $state('');
+  let newCardTags = $state<string[]>([]);
+  let newTagInput = $state('');
   
   // Store a reference to the VSCode API
   let vsCodeApi: any;
 
   // Reference to the horizontal scroll container in editor mode
   let editorScrollContainer: HTMLElement | null = null;
+
+  // Drag and Drop state
+  let isDraggingOver = $state(false);
 
   // Auto-scroll state
   let scrollIntervalId: number | null = null;
@@ -253,8 +255,7 @@
       id: uuidv4(),
       title: 'New Card',
       description: '',
-      labels: [],
-      assignee: '',
+      tags: [],
       columnId,
       boardId,
       order: 0,
@@ -270,8 +271,7 @@
         columnId,
         title: newCard.title,
         description: newCard.description,
-        labels: newCard.labels,
-        assignee: String(newCard.assignee || '')
+        tags: newCard.tags,
       }
     });
     log('addCard message sent to extension');
@@ -381,88 +381,65 @@
     }
   }
 
-  function handleAddCard(columnId: string) {
-    log('🎯 handleAddCard called for column:', columnId);
-    log('Opening new card form for column', { columnId });
-    
+  function startCreatingCard(columnId: string) {
+    log('Starting card creation for column:', columnId);
     targetColumnId = columnId;
-    log('🎯 Set targetColumnId to:', targetColumnId);
-    
+    isCreatingCard = true;
     newCardTitle = '';
     newCardDescription = '';
-    newCardAssignee = '';
-    newCardLabels = [];
-    
-    isCreatingCard = true;
-    log('🎯 Card creation form should now be visible, isCreatingCard =', isCreatingCard);
+    newCardTags = [];
+    newTagInput = '';
   }
-  
-  function createCard() {
-    log('📝 createCard function called');
-    
-    if (!newCardTitle.trim()) {
-      log('Cannot create card: title is empty');
+
+  function cancelCreateCard() {
+    isCreatingCard = false;
+  }
+
+  function addTag() {
+    if (!newTagInput.trim()) return;
+    if (newCardTags.includes(newTagInput.trim())) {
+      newTagInput = '';
       return;
     }
-    
-    log('Creating new card with values:', {
-      title: newCardTitle,
-      description: newCardDescription,
-      assignee: newCardAssignee,
-      labels: newCardLabels,
-      columnId: targetColumnId,
-      boardId
-    });
-    
-    log('Creating new card for column', { columnId: targetColumnId });
-    
-    isCreatingCard = false;
+    newCardTags = [...newCardTags, newTagInput.trim()];
+    newTagInput = '';
+  }
 
-    // Use the standard message pattern, just like addColumn
+  function removeTag(tagToRemove: string) {
+    newCardTags = newCardTags.filter(tag => tag !== tagToRemove);
+  }
+
+  function createCard() {
+    if (!newCardTitle.trim()) {
+      error('Cannot create card: title is empty');
+      return;
+    }
+    log('Creating card with title:', newCardTitle);
+
+    const newCardId = uuidv4();
+    // Convert tags proxy to plain array for postMessage compatibility
+    const plainTags = [...newCardTags];
+
+    // Send message to extension to create card
     sendMessage({
       command: Commands.ADD_CARD,
       data: {
-        boardId,
+        boardId: boardId,
         columnId: targetColumnId,
-        title: newCardTitle,
-        description: String(newCardDescription || ''),
-        labels: [...newCardLabels],
-        assignee: String(newCardAssignee || '')
+        cardId: newCardId,
+        title: newCardTitle.trim(), // Trim title here as well
+        description: newCardDescription.trim(), // Trim description
+        tags: plainTags // Use the plain array
       }
     });
-    
-    log('Card creation message sent with all fields');
-  }
-  
-  function cancelCardCreation() {
+
+    // Reset form and close
     isCreatingCard = false;
-  }
-
-  function addLabel() {
-    if (!newLabelInput.trim()) return;
-    if (newCardLabels.includes(newLabelInput.trim())) return;
-    
-    newCardLabels = [...newCardLabels, newLabelInput.trim()];
-    newLabelInput = '';
-  }
-  
-  function removeLabel(label: string) {
-    newCardLabels = newCardLabels.filter(l => l !== label);
-  }
-
-  function handleUpdateCard(updatedCard: Card) {
-    log('Board: handleUpdateCard called', { cardId: updatedCard.id, columnId: updatedCard.columnId });
-    sendMessage({
-      command: Commands.UPDATE_CARD,
-      data: {
-        boardId,
-        columnId: updatedCard.columnId,
-        cardId: updatedCard.id,
-        title: updatedCard.title,
-        description: updatedCard.description || ''
-      }
-    });
-    log('Board: UPDATE_CARD message sent to extension');
+    newCardTitle = '';
+    newCardDescription = '';
+    newCardTags = [];
+    newTagInput = '';
+    log('Create card message sent, form reset.');
   }
 
   /**
@@ -556,6 +533,65 @@
         stopScrolling(); // Stop if context changes or container is missing
     }
   }
+
+  function handleDragEnd(event: DragEvent, targetColumnId: string) {
+    log(`handleDragEnd called for column: ${targetColumnId}`);
+    // Reset drop zone styling
+    isDraggingOver = false;
+    
+    if (scrollIntervalId) {
+      clearInterval(scrollIntervalId);
+      scrollIntervalId = null;
+    }
+
+    if (!event.dataTransfer) {
+      log('handleDragEnd: No dataTransfer object found');
+      return;
+    }
+    
+    const cardDataString = event.dataTransfer.getData('text/plain');
+    if (!cardDataString) {
+      log('handleDragEnd: No card data found in dataTransfer');
+      return;
+    }
+    
+    try {
+      const { cardId, fromColumnId } = JSON.parse(cardDataString);
+      log('handleDragEnd: Parsed card data:', { cardId, fromColumnId });
+      
+      // Don't proceed if the card was dropped back into the same column
+      if (fromColumnId === targetColumnId) {
+        log('handleDragEnd: Card dropped into the same column, no action needed.');
+        return;
+      }
+      
+      // Determine the target position based on where it was dropped (e.g., index of card it was dropped onto)
+      // For now, we'll just add it to the end (index 0 for beginning)
+      const position = getColumnCards(targetColumnId).length; // Add to end
+
+      // Send moveCard message to extension
+      sendMessage({
+        command: Commands.MOVE_CARD,
+        data: { 
+          boardId: boardId,
+          cardId: cardId, 
+          fromColumnId: fromColumnId, 
+          toColumnId: targetColumnId,
+          position: position // Position within the target column
+        }
+      });
+      log('handleDragEnd: MOVE_CARD message sent to extension');
+
+    } catch (e) {
+      error('handleDragEnd: Failed to parse card data or send message', e);
+    }
+  }
+
+  function handleAddColumn() {
+    log('handleAddColumn function called');
+    // Generate a unique ID for the new column
+    // ... existing code ...
+  }
 </script>
 
 <!-- Root container with adaptive styling based on context -->
@@ -615,9 +651,9 @@
               initialCollapsed={column.collapsed ?? false}
               onToggleCollapse={(newState) => handleColumnToggle(column.id, newState)}
               onCardMoved={handleCardMove}
-              onCardUpdated={handleUpdateCard}
+              onCardUpdated={handleCardUpdated}
               onCardDeleted={handleCardDeleted}
-              onAddCard={handleAddCard}
+              onAddCard={startCreatingCard}
               onDeleteColumn={deleteColumn}
               onUpdateColumn={(columnData) => handleUpdateColumn(columnData)}
             />
@@ -647,9 +683,9 @@
               initialCollapsed={column.collapsed ?? false}
               onToggleCollapse={(newState) => handleColumnToggle(column.id, newState)}
               onCardMoved={handleCardMove}
-              onCardUpdated={handleUpdateCard}
+              onCardUpdated={handleCardUpdated}
               onCardDeleted={handleCardDeleted}
-              onAddCard={handleAddCard}
+              onAddCard={startCreatingCard}
               onDeleteColumn={deleteColumn}
               onUpdateColumn={(columnData) => handleUpdateColumn(columnData)}
             />
@@ -708,7 +744,7 @@
           <h2 class="text-sm font-medium text-[var(--vscode-foreground)]">Create New Card</h2>
           <!-- Close button (X) -->
           <button
-            onclick={cancelCardCreation}
+            onclick={cancelCreateCard}
             class="text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)]"
             aria-label="Close"
           >
@@ -755,32 +791,20 @@
             ></textarea>
           </div>
           
-          <!-- Card assignee input field -->
+          <!-- Tags section with existing tags display and new tag input -->
           <div>
-            <label for="card-assignee" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Assignee</label>
-            <input
-              type="text"
-              id="card-assignee"
-              bind:value={newCardAssignee}
-              class="w-full px-2 py-1 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-              placeholder="Enter assignee name"
-            />
-          </div>
-          
-          <!-- Labels section with existing labels display and new label input -->
-          <div>
-            <label for="new-label" class="block text-xs font-medium text-[var(--vscode-foreground)] mb-1">Labels</label>
-            <!-- Display existing labels as badges with remove buttons -->
+            <label for="new-tag" class="block text-xs text-[var(--vscode-foreground)] mb-1">Tags</label>
+            <!-- Display existing tags as badges with remove buttons -->
             <div class="flex flex-wrap gap-1 mb-2">
-              {#each newCardLabels as label}
+              {#each newCardTags as tag}
                 <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-xs bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)]">
-                  {label}
-                  <!-- Remove label button (X) -->
+                  {tag}
+                  <!-- Remove tag button (X) -->
                   <button
                     type="button"
-                    onclick={() => removeLabel(label)}
+                    onclick={() => removeTag(tag)}
                     class="ml-1 text-[var(--vscode-badge-foreground)] hover:text-[var(--vscode-errorForeground)]"
-                    aria-label="Remove label {label}"
+                    aria-label="Remove tag {tag}"
                   >
                     <!-- X icon (SVG) -->
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -791,26 +815,26 @@
                 </span>
               {/each}
             </div>
-            <!-- Input group for adding new labels -->
+            <!-- Input group for adding new tags -->
             <div class="flex gap-1">
-              <!-- New label input with Enter key support -->
+              <!-- New tag input with Enter key support -->
               <input
                 type="text"
-                id="new-label"
-                bind:value={newLabelInput}
+                id="new-tag"
+                bind:value={newTagInput}
                 class="flex-1 px-2 py-1 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded-l-sm focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
-                placeholder="Add label..."
+                placeholder="Add tag..."
                 onkeydown={(e: KeyboardEvent) => {
                   if (e.key === 'Enter') {
                     e.preventDefault(); // Prevent form submission
-                    addLabel(); // Call addLabel function instead
+                    addTag(); // Call addTag function instead
                   }
                 }}
               />
-              <!-- Add label button -->
+              <!-- Add tag button -->
               <button
                 type="button"
-                onclick={addLabel}
+                onclick={addTag}
                 class="px-2 py-1 bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)] border border-[var(--vscode-button-secondaryBorder)] rounded-r-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
               >
                 Add
@@ -823,7 +847,7 @@
             <!-- Cancel button - styled as secondary button -->
             <button
               type="button"
-              onclick={cancelCardCreation}
+              onclick={cancelCreateCard}
               class="px-2 py-1 text-[var(--vscode-foreground)] border border-[var(--vscode-button-secondaryBorder)] bg-[var(--vscode-button-secondaryBackground)] rounded-sm hover:bg-[var(--vscode-button-secondaryHoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
             >
               Cancel

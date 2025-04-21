@@ -2,143 +2,97 @@ import { BoardStorage } from "./board/board-storage";
 import { v4 as uuidv4 } from "uuid";
 import { Commands } from "../shared/commands";
 import * as vscode from "vscode";
+import { Card as SharedCard } from "@shared/types"; // Import shared type
+import { Card as ModelCard } from "@src/models/board"; // Import model type
 
 /**
- * Direct method to add a card to a column in a board
- * This bypasses the normal message handling system
+ * Directly adds a card using provided parameters.
+ *
+ * @param title The title of the card (required).
+ * @param columnId The ID of the column to add the card to (required).
+ * @param boardId The ID of the board the column belongs to (required).
+ * @param description Optional description for the card.
+ * @param tags Optional array of strings for tags (replaces labels).
+ * @returns {Promise<boolean>} True if the card was added successfully, false otherwise.
  */
-export async function directAddCard(
+export async function directAddCardHandler(
+  context: vscode.ExtensionContext,
   title: string,
   columnId: string,
   boardId: string,
-  context: vscode.ExtensionContext,
-  webview: vscode.Webview,
-  description: string = "",
-  labels: string[] = [],
-  assignee: string = ""
+  description?: string,
+  tags?: string[] // Renamed from labels
 ): Promise<boolean> {
-  console.log("🚨 DIRECT ADD CARD called with:", {
+  console.log("🎯 Direct add card command called with:", {
     title,
     columnId,
     boardId,
-    description: description ? `${description.length} chars` : "empty",
-    labels: Array.isArray(labels) ? labels.length : "not an array",
-    assignee: assignee || "none",
+    description,
+    tags: Array.isArray(tags) ? tags.length : "not an array", // Log tag count
   });
 
   try {
-    // Create storage
+    // Validate required parameters
+    if (!title || !columnId || !boardId) {
+      console.error(
+        "🎯 DIRECT ADD CARD: Missing required fields (title, columnId, or boardId)"
+      );
+      vscode.window.showErrorMessage(
+        "Failed to create card: Missing title, column ID, or board ID."
+      );
+      return false;
+    }
+
+    // Create the storage directly
     const storage = new BoardStorage(context);
 
-    // Validate parameters
-    if (!title || !columnId || !boardId) {
-      console.error("🚨 DIRECT ADD CARD: Missing required fields");
-      console.error("  - title:", title ? "present" : "missing");
-      console.error("  - columnId:", columnId ? "present" : "missing");
-      console.error("  - boardId:", boardId ? "present" : "missing");
-      return false;
-    }
-
-    // Check if column and board exist
-    try {
-      const boards = await storage.getBoards();
-      const board = boards.find((b) => b.id === boardId);
-      if (!board) {
-        console.error(`🚨 DIRECT ADD CARD: Board ${boardId} does not exist`);
-        return false;
-      }
-
-      const columns = await storage.getColumns(boardId);
-      const column = columns.find((c) => c.id === columnId);
-      if (!column) {
-        console.error(
-          `🚨 DIRECT ADD CARD: Column ${columnId} does not exist in board ${boardId}`
-        );
-        return false;
-      }
-
-      console.log(
-        `🚨 DIRECT ADD CARD: Verified board and column exist. Board: ${board.title}, Column: ${column.title}`
-      );
-    } catch (err) {
-      console.error(
-        "🚨 DIRECT ADD CARD: Error verifying board and column:",
-        err
+    // Fetch the column to determine the order for the new card
+    const column = await storage.getColumn(columnId);
+    if (!column) {
+      console.error(`🎯 DIRECT ADD CARD: Column ${columnId} not found.`);
+      vscode.window.showErrorMessage(
+        `Failed to create card: Column not found.`
       );
       return false;
     }
+    const order = column.cards.length; // Place the new card at the end
 
-    // Create the new card
-    const newCard = {
+    // Create the new card object conforming to ModelCard
+    const newCard: ModelCard = {
       id: uuidv4(),
-      title: title.slice(0, 100) || "",
-      description: description?.slice(0, 1000) || "",
+      title: title.slice(0, 100), // Ensure title respects limits
+      description: description?.slice(0, 1000) || "", // Ensure description respects limits
       columnId: columnId,
       boardId: boardId,
-      labels: labels || [],
-      assignee: assignee || "",
-      order: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      tags: tags || [], // Use tags
+      order: order,
+      createdAt: new Date(), // Use Date object
+      updatedAt: new Date(), // Use Date object
     };
 
-    console.log("🚨 DIRECT ADD CARD: Saving card:", newCard);
+    console.log("🎯 DIRECT ADD CARD: Saving card:", newCard);
 
-    // Save the card
+    // Save the card directly using the storage method
     await storage.saveCard(newCard);
 
-    console.log("🚨 DIRECT ADD CARD: Card saved successfully");
+    console.log("🎯 DIRECT ADD CARD: Card saved successfully!");
 
-    // Send response to webview
-    const response = {
-      command: Commands.CARD_ADDED,
-      data: {
-        success: true,
-        boardId: boardId,
-        columnId: columnId,
-        card: newCard,
-      },
-    };
-
-    console.log("🚨 DIRECT ADD CARD: Sending response to webview");
-    try {
-      webview.postMessage(response);
-      console.log("🚨 DIRECT ADD CARD: Response sent successfully");
-    } catch (postError) {
-      console.error(
-        "🚨 DIRECT ADD CARD: Error sending response to webview:",
-        postError
-      );
-    }
-
-    return true;
-  } catch (error) {
-    console.error("🚨 DIRECT ADD CARD: Error adding card:", error);
-    console.error(
-      "🚨 Error details:",
-      error instanceof Error ? error.stack : "No stack trace available"
+    // Show a success notification
+    vscode.window.showInformationMessage(
+      `Card "${title}" created successfully!`
     );
 
-    // Send error response
-    try {
-      webview.postMessage({
-        command: Commands.CARD_ADDED,
-        data: {
-          success: false,
-          error: `Failed to add card: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-          boardId: boardId,
-          columnId: columnId,
-        },
-      });
-    } catch (postError) {
-      console.error(
-        "🚨 DIRECT ADD CARD: Failed to send error response:",
-        postError
-      );
-    }
+    // Optional: Trigger a refresh of the webview if necessary
+    // This depends on how webviews are notified of external changes
 
+    return true;
+  } catch (err) {
+    console.error("🎯 Error in direct card creation:", err);
+    vscode.window.showErrorMessage(
+      `Failed to create card: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
     return false;
   }
 }

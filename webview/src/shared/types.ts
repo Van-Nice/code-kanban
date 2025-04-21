@@ -9,8 +9,7 @@ export interface BaseEntity {
 export interface Card extends BaseEntity {
   title: string;
   description: string;
-  labels: string[];
-  assignee: string;
+  tags: string[];
   columnId: string;
   boardId: string;
   order: number;

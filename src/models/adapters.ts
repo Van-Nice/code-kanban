@@ -43,8 +43,7 @@ export function convertToApiCard(card: SharedCard): Card {
     description: card.description,
     columnId: card.columnId,
     boardId: card.boardId,
-    labels: card.labels || [],
-    assignee: card.assignee || "",
+    tags: card.tags || [],
     order: card.order || 0,
     createdAt: new Date(card.createdAt),
     updatedAt: new Date(card.updatedAt),
@@ -80,18 +79,18 @@ export function convertToStorageColumn(
 }
 
 export function convertToStorageCard(card: Card): SharedCard {
-  return {
+  const cardData: CardData = {
     id: card.id,
     title: card.title,
-    description: card.description,
+    description: card.description || "",
+    tags: card.tags || [],
     columnId: card.columnId,
     boardId: card.boardId,
-    labels: [],
-    assignee: "",
     order: 0, // Default order
-    createdAt: card.createdAt.toISOString(),
+    createdAt: new Date().toISOString(),
     updatedAt: card.updatedAt.toISOString(),
   };
+  return cardData;
 }
 
 // Add the missing columns property

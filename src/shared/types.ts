@@ -10,8 +10,7 @@ export interface Card extends BaseEntity {
   id: string;
   title: string;
   description: string;
-  labels: string[];
-  assignee: string;
+  tags: string[];
   columnId: string;
   boardId: string;
   order: number;
@@ -22,8 +21,7 @@ export interface Card extends BaseEntity {
 export interface CardData extends BaseEntity {
   title: string;
   description: string;
-  labels: string[];
-  assignee: string;
+  tags: string[];
   columnId: string;
   boardId: string;
   order: number;
@@ -102,8 +100,7 @@ export function isCardData(data: any): data is CardData {
     typeof data.columnId === "string" &&
     typeof data.boardId === "string" &&
     typeof data.order === "number" &&
-    Array.isArray(data.labels) &&
-    typeof data.assignee === "string" &&
+    Array.isArray(data.tags) &&
     typeof data.createdAt === "string" &&
     typeof data.updatedAt === "string"
   );

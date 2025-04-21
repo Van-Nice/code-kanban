@@ -15,8 +15,9 @@
     "Other"
   ],
   "activationEvents": [
-    "onView:boogieWebview",
-    "onCommand:boogie.openKanbanBoard"
+    "onCommand:boogie.openKanbanBoard",
+    "onCommand:boogie.directAddCard",
+    "onCommand:boogie.openBoardInEditor"
   ],
   "main": "./dist/extension.js",
   "contributes": {

@@ -1,5 +1,6 @@
 import { CommandType, Commands } from "./commands";
-import { Board, Column, Card } from "../models/board";
+import { Board, Column } from "../models/board";
+import { Card as SharedCard } from "./types";
 
 /**
  * Base interface for all webview messages
@@ -149,10 +150,10 @@ export interface AddCardMessage extends WebviewMessageBase {
   data: {
     boardId: string;
     columnId: string;
+    cardId?: string;
     title: string;
     description?: string;
-    labels?: string[];
-    assignee?: string;
+    tags?: string[];
   };
 }
 
@@ -165,7 +166,23 @@ export interface CardAddedResponse extends ResponseMessageBase {
     success: boolean;
     boardId: string;
     columnId: string;
-    card?: Card;
+    card?: SharedCard;
     error?: string;
+  };
+}
+
+/**
+ * Message sent when updating a card
+ */
+export interface UpdateCardMessage extends WebviewMessageBase {
+  command: typeof Commands.UPDATE_CARD;
+  data: {
+    boardId: string;
+    columnId: string;
+    cardId: string;
+    title?: string;
+    description?: string;
+    tags?: string[];
+    order?: number;
   };
 }
