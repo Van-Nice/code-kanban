@@ -31,7 +31,7 @@
   let vsCodeApi: any;
 
   // Reference to the horizontal scroll container in editor mode
-  let editorScrollContainer: HTMLElement | null = null;
+  let editorScrollContainer = $state<HTMLElement | null>(null);
 
   // Drag and Drop state
   let isDraggingOver = $state(false);
@@ -612,11 +612,12 @@
 <!-- Root container with adaptive styling based on context -->
 <!-- The h-full class makes the container take full height of its parent -->
 <!-- sidebar-context class is conditionally added to apply different styles when displayed in the sidebar -->
-<div 
+<div
   class="h-full {webviewContext === 'sidebar' ? 'sidebar-context' : ''}"
-  ondragover={handleBoardDragOver} 
+  ondragover={handleBoardDragOver}
   ondragleave={stopScrolling}
   ondrop={stopScrolling}
+  role="group"
 >
   {#if isLoading}
     <!-- Loading state: displays a centered spinner while board data is being fetched -->
@@ -684,6 +685,7 @@
         ondragover={handleBoardDragOver}
         ondragleave={() => { /* TODO: Stop scrolling if active */ }}
         ondrop={() => { /* TODO: Stop scrolling if active */ }}
+        role="group"
       >
         <!-- Loop through each column and render it horizontally -->
         {#each columns as column (column.id)}

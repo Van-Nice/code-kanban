@@ -174,10 +174,11 @@
   role="button"
   tabindex="0"
   aria-label="Draggable card: {title}"
-  class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out {isDragging ? 'opacity-50 border-[var(--vscode-focusBorder)]' : ''} hover:border-[var(--vscode-focusBorder)]"
+  class="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-sm shadow-sm hover:shadow-md transition-all duration-200 ease-in-out {isDragging ? 'opacity-50 border-[var(--vscode-focusBorder)]' : ''} hover:border-[var(--vscode-focusBorder)] relative group"
   ondragstart={handleDragStart}
   ondragend={handleDragEnd}
   draggable={!isEditing}
+  onclick={handleCardClick}
   onkeydown={(e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -306,7 +307,7 @@
     </form>
   {:else}
     <!-- Non-Editing Mode -->
-    <div class="p-3 cursor-grab" onclick={handleCardClick} role="button" aria-label="Edit card: {title}">
+    <div class="p-3 cursor-grab">
       <!-- Card Title -->
       <h3 class="text-sm font-medium text-[var(--vscode-foreground)] mb-1">{title}</h3>
       
@@ -333,7 +334,7 @@
           deleteCard();
         }}
         aria-label="Delete card: {title}"
-        class="absolute top-1 right-1 p-1 text-[var(--vscode-icon-foreground)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-[var(--vscode-errorForeground)] transition-opacity duration-150 rounded-full hover:bg-[var(--vscode-toolbar-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
+        class="absolute top-1 right-1 p-1 text-[var(--vscode-icon-foreground)] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-[var(--vscode-errorForeground)] transition-opacity duration-150 rounded-full hover:bg-[var(--vscode-toolbar-hoverBackground)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focusBorder)]"
       >
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -342,11 +343,3 @@
     </div>
   {/if}
 </div>
-
-<style>
-  /* Add a style to make the delete button visible on hover/focus of the parent card */
-  div[role="button"]:hover > button[aria-label^="Delete card"],
-  div[role="button"]:focus-within > button[aria-label^="Delete card"] {
-    opacity: 1;
-  }
-</style>
