@@ -1,5 +1,5 @@
 /**
- * Shared command constants for Boogie
+ * Shared command constants for Code Kanban
  *
  * This file contains all the command names used for communication between
  * the extension backend and the webview frontend.

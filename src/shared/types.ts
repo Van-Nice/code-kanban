@@ -117,10 +117,10 @@ export interface Migration {
 
 // Storage version constants
 export const STORAGE_KEYS = {
-  BOARDS: "boogie.boards.metadata",
-  COLUMNS: "boogie.boards.columns",
-  CARDS: "boogie.boards.cards",
-  VERSION: "boogie.storage.version",
+  BOARDS: "codeKanban.boards.metadata",
+  COLUMNS: "codeKanban.boards.columns",
+  CARDS: "codeKanban.boards.cards",
+  VERSION: "codeKanban.storage.version",
 } as const;
 
 export const CURRENT_STORAGE_VERSION = "1.1.0";

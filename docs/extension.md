@@ -15,17 +15,18 @@ The `src/` directory contains the core logic for the extension's backend, includ
   - **`activate(context: vscode.ExtensionContext)`**:
     - Called when the extension is first activated (e.g., when a command is run or a webview is opened).
     - Stores the `extensionContext`.
-    - Registers the `WebviewViewProvider` (`boogieWebview`) for the sidebar panel.
-      - Configures the webview's options (enable scripts, local resources).
-      - Sets the HTML content for the webview, embedding the necessary JavaScript (`webview.js`) and CSS (`webview.css`) from the `dist/` directory.
-      - Instantiates a `MessageHandler` specifically for the sidebar context (`webviewContext: "sidebar"`).
-      - Sets up an `onDidReceiveMessage` listener to route messages from the sidebar webview to its `MessageHandler`. Includes special handling for `executeCommand` and `addCardDirect`.
-    - Registers the `boogie.openKanbanBoard` command.
-      - When executed, creates a new `WebviewPanel` in the editor area.
-      - Configures the panel's webview options.
-      - Instantiates a separate `MessageHandler` for the editor context (`webviewContext: "editor"`).
-      - Sets up an `onDidReceiveMessage` listener for the editor panel's webview.
-      - Sets the HTML content for the editor webview.
+    - Creates a `BoardStorage` instance for data management.
+    - Registers the `WebviewViewProvider` (`codeKanbanWebview`) for the sidebar panel.
+      - The provider's `resolveWebviewView` method sets up the webview's HTML content, options (enabling scripts), and message listeners.
+      - It initializes a `MessageHandler` specific to the sidebar context.
+      - Handles visibility changes to restore sidebar state (currently tracks `boardId`).
+    - Registers the `codeKanban.openBoard` command.
+      - This command creates a new `WebviewPanel` in the editor area.
+      - Initializes a `MessageHandler` specific to the editor context.
+      - Loads the specified board data using `BoardStorage` and sends it to the webview via a `BOARD_LOADED` message.
+    - Registers the `codeKanban.addCard` command.
+      - Allows direct card creation via command (e.g., from other extensions or code).
+      - Uses `BoardStorage` directly to save the new card.
     - Logs an activation message.
   - **`deactivate()`**:
     - Called when the extension is deactivated. Currently empty, but can be used for cleanup tasks.

@@ -27,7 +27,7 @@ suite("Message Handler Tests", () => {
 
     // Register the command we need for testing
     vscode.commands.registerCommand(
-      "boogie.openBoardInEditor",
+      "codeKanban.openBoardInEditor",
       (boardId: string) => {
         testLogger.info(
           `openBoardInEditor command executed with boardId: ${boardId}`

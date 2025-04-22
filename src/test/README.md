@@ -1,4 +1,6 @@
-# Testing Guide for Boogie Extension
+# Testing Guide for Code Kanban Extension
+
+This guide provides instructions on how to run and debug tests for the Code Kanban extension.
 
 ## Overview
 

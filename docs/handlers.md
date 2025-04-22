@@ -154,7 +154,7 @@ This subdirectory contains handlers specifically for managing boards and their s
   - Exports `handleOpenBoardInEditor`.
   - Triggered by an `openBoardInEditor` command (`Commands.OPEN_BOARD_IN_EDITOR`) with a `boardId`.
   - Verifies the board exists using `storage.getBoard()`.
-  - Executes the VS Code command `boogie.openBoardInEditor` with the `boardId`. This command is responsible for actually creating and showing the WebviewPanel for the board editor.
+  - Executes the VS Code command `codeKanban.openBoardInEditor` with the `boardId`. This command is responsible for actually creating and showing the WebviewPanel for the board editor.
   - Returns an `OpenBoardInEditorResponse` indicating if the command was successfully executed.
 
 - **`board-loaded-handler.ts`**:

@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Set up webview
   extensionContext.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("boogieWebview", {
+    vscode.window.registerWebviewViewProvider("codeKanbanWebview", {
       resolveWebviewView(webviewView: vscode.WebviewView) {
         // Enable scripts and set resource roots
         webviewView.webview.options = {
@@ -196,11 +196,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Use the console to output diagnostic information (console.log) and errors (console.error)
   // This line of code will only be executed once when your extension is activated
-  console.log('Congratulations, your extension "boogie" is now active!');
+  console.log('Congratulations, your extension "Code Kanban" is now active!');
 
   // Register command to open the Kanban board
   const disposable = vscode.commands.registerCommand(
-    "boogie.openKanbanBoard",
+    "codeKanban.openBoard",
     () => {
       // Create a new webview panel
       const panel = vscode.window.createWebviewPanel(
@@ -307,7 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register command to open a specific board in the editor
   const openBoardInEditorDisposable = vscode.commands.registerCommand(
-    "boogie.openBoardInEditor",
+    "codeKanban.openBoardInEditor",
     async (boardId: string) => {
       // Create a new webview panel
       const panel = vscode.window.createWebviewPanel(
@@ -512,7 +512,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register a direct command to add a card (accessible to all parts of the extension)
   const directAddCardDisposable = vscode.commands.registerCommand(
-    "boogie.directAddCard",
+    "codeKanban.addCard",
     async (
       title: string,
       columnId: string,

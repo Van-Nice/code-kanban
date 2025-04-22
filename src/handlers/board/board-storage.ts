@@ -921,7 +921,8 @@ export class BoardStorage implements Storage {
 
   // --- Methods for Collapsed State (Using workspaceState) ---
 
-  private readonly collapsedStateKey = "boogieBoardUIStates";
+  /** Key for storing column collapsed states in workspaceState */
+  private readonly collapsedStateKey = "codeKanbanUIStates";
 
   /**
    * Retrieves the persisted collapsed states for all columns within a specific board.

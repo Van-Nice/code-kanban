@@ -1,13 +1,14 @@
 {
-  "name": "boogie",
-  "displayName": "boogie",
+  "name": "codekanban",
+  "displayName": "Code Kanban",
   "description": "Kanban board and to do list fully integrated into vscode",
   "version": "0.0.1",
   "publisher": "wilsonvannice",
   "repository": {
     "type": "git",
-    "url": "https://github.com/van-nice/boogie.git"
+    "url": "https://github.com/van-nice/code-kanban.git"
   },
+  "icon": "icons/codekanban.png",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -15,35 +16,35 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:boogie.openKanbanBoard",
-    "onCommand:boogie.directAddCard",
-    "onCommand:boogie.openBoardInEditor"
+    "onCommand:codeKanban.openBoard",
+    "onCommand:codeKanban.addCard",
+    "onCommand:codeKanban.openBoardInEditor"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "boogie",
-          "title": "Boogie Boards",
-          "icon": "icons/boogieboard.svg"
+          "id": "codeKanban",
+          "title": "Code Kanban",
+          "icon": "icons/codekanban.svg"
         }
       ]
     },
     "views": {
-      "boogie": [
+      "codeKanban": [
         {
-          "id": "boogieWebview",
-          "name": "Boogie Boards",
+          "id": "codeKanbanWebview",
+          "name": "Code Kanban",
           "type": "webview",
-          "icon": "icons/boogieboard.svg"
+          "icon": "icons/codekanban.svg"
         }
       ]
     },
     "commands": [
       {
-        "command": "boogie.openKanbanBoard",
-        "title": "Open Kanban Board"
+        "command": "codeKanban.openBoard",
+        "title": "Open Board"
       }
     ]
   },

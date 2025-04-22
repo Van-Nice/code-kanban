@@ -41,7 +41,7 @@ export async function handleOpenBoardInEditor(
     // Execute the openBoardInEditor command through VS Code
     logger.debug(`Opening board in editor: ${message.data.boardId}`);
     await vscode.commands.executeCommand(
-      "boogie.openBoardInEditor",
+      "codeKanban.openBoardInEditor",
       message.data.boardId
     );
     return {
