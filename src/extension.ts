@@ -4,6 +4,7 @@ import { MessageHandler } from "./handlers/message-handler";
 import { Commands } from "./shared/commands";
 import { BoardStorage } from "./handlers/board/board-storage";
 import { convertToApiBoard } from "./models/adapters"; // May need adapters
+import { startServer, stopServer } from "./api/server";
 import type { ColumnWithCollapsedState } from "./handlers/messages"; // Import augmented type
 import type {
   Board as ModelBoard,
@@ -19,6 +20,12 @@ let boardStorage: BoardStorage;
 export function activate(context: vscode.ExtensionContext) {
   extensionContext = context;
   boardStorage = new BoardStorage(context);
+
+  console.log(
+    "Code Kanban: Activating extension. Attempting to start API server..."
+  );
+  startServer(context);
+  console.log("Code Kanban: API server start process initiated.");
 
   // Variable to store sidebar state (e.g., current board ID)
   let sidebarState: { boardId: string | null } = { boardId: null };
@@ -581,4 +588,6 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+  stopServer();
+}

@@ -1,52 +1,42 @@
-import {
+import type {
   Board as SharedBoard,
   Column as SharedColumn,
   Card as SharedCard,
-  BoardMetadata,
 } from "../shared/types";
-import { Board, Column, Card } from "./board";
+import type {
+  Board as ModelBoard,
+  Column as ModelColumn,
+  Card as ModelCard,
+} from "./board";
 
 /**
  * Adapters to convert between different model representations
  */
 
 // Convert from storage model to API model
-export function convertToApiBoard(board: SharedBoard): Board {
+export function convertToApiBoard(board: ModelBoard): SharedBoard {
   return {
-    id: board.id,
-    title: board.title,
-    description: board.description,
-    columnIds: board.columns.map((c) => c.id),
-    columns: [], // Add empty columns array
-    createdAt: new Date(board.createdAt),
-    updatedAt: new Date(board.updatedAt),
+    ...board,
+    createdAt: board.createdAt.toISOString(),
+    updatedAt: board.updatedAt.toISOString(),
+    columns: board.columns.map(convertToApiColumn),
   };
 }
 
-export function convertToApiColumn(column: SharedColumn): Column {
+function convertToApiColumn(column: ModelColumn): SharedColumn {
   return {
-    id: column.id,
-    title: column.title,
-    boardId: column.boardId || column.cards[0]?.boardId || "", // Use column's boardId first, then fallback to first card's boardId
+    ...column,
+    createdAt: column.createdAt.toISOString(),
+    updatedAt: column.updatedAt.toISOString(),
     cards: column.cards.map(convertToApiCard),
-    cardIds: column.cards.map((c) => c.id),
-    order: column.order || 0,
-    createdAt: new Date(column.createdAt),
-    updatedAt: new Date(column.updatedAt),
   };
 }
 
-export function convertToApiCard(card: SharedCard): Card {
+function convertToApiCard(card: ModelCard): SharedCard {
   return {
-    id: card.id,
-    title: card.title,
-    description: card.description,
-    columnId: card.columnId,
-    boardId: card.boardId,
-    tags: card.tags || [],
-    order: card.order || 0,
-    createdAt: new Date(card.createdAt),
-    updatedAt: new Date(card.updatedAt),
+    ...card,
+    createdAt: card.createdAt.toISOString(),
+    updatedAt: card.updatedAt.toISOString(),
   };
 }
 

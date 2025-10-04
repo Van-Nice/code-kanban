@@ -46,7 +46,22 @@
         "command": "codeKanban.openBoard",
         "title": "Open Board"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Code Kanban",
+      "properties": {
+        "codeKanban.api.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the Code Kanban REST API."
+        },
+        "codeKanban.api.port": {
+          "type": "number",
+          "default": 3000,
+          "description": "Port for the Code Kanban REST API."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -84,6 +99,8 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@types/express": "^5.0.3",
+    "express": "^5.1.0",
     "uuid": "^11.1.0"
   }
 }
