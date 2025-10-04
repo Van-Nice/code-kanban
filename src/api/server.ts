@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import express, { Request, Response } from "express";
+import express = require("express");
 import { BoardStorage } from "../handlers/board/board-storage";
 import { Server } from "http";
 import { convertToApiBoard } from "../models/adapters";
@@ -8,7 +8,8 @@ let server: Server | null = null;
 
 export function startServer(context: vscode.ExtensionContext) {
   const config = vscode.workspace.getConfiguration("codeKanban.api");
-  const apiEnabled = config.get("enabled", false);
+  // const apiEnabled = config.get("enabled", false); // Temporarily bypass config
+  const apiEnabled = true; // FORCE ENABLE FOR TESTING
   const port = config.get("port", 3000);
 
   console.log(`Code Kanban API Config: enabled=${apiEnabled}, port=${port}`);
@@ -20,8 +21,9 @@ export function startServer(context: vscode.ExtensionContext) {
 
   const boardStorage = new BoardStorage(context);
   const app = express();
+  app.use(express.json());
 
-  app.get("/boards", async (req: Request, res: Response) => {
+  app.get("/boards", async (req: express.Request, res: express.Response) => {
     try {
       const boards = await boardStorage.getBoards();
       const apiBoards = boards.map(convertToApiBoard);
@@ -31,19 +33,22 @@ export function startServer(context: vscode.ExtensionContext) {
     }
   });
 
-  app.get("/boards/:boardId", async (req: Request, res: Response) => {
-    try {
-      const board = await boardStorage.getBoard(req.params.boardId);
-      if (board) {
-        const apiBoard = convertToApiBoard(board);
-        res.json(apiBoard);
-      } else {
-        res.status(404).send("Board not found");
+  app.get(
+    "/boards/:boardId",
+    async (req: express.Request, res: express.Response) => {
+      try {
+        const board = await boardStorage.getBoard(req.params.boardId);
+        if (board) {
+          const apiBoard = convertToApiBoard(board);
+          res.json(apiBoard);
+        } else {
+          res.status(404).send("Board not found");
+        }
+      } catch (error) {
+        res.status(500).send("Error fetching board");
       }
-    } catch (error) {
-      res.status(500).send("Error fetching board");
     }
-  });
+  );
 
   server = app.listen(port, () => {
     console.log(`Code Kanban API server listening on port ${port}`);
